@@ -1,0 +1,249 @@
+/*#######################################################################
+  Funkcja: ADD_NEW_MOVE
+	Argumenty: point pt
+	Zwraca: int liczba ruchów dodanych
+	Cel: dodaje nowe ruchy po dodaniu punktu, aktualizuje wektor ruchy i ruchy2.
+	jest odporna na bezsensowne ruchy bez polaczen.
+  #######################################################################*/
+int add_new_move(point pt){
+	int wynik=0;
+	int ill=0;
+	//poziomo
+	int pon = 0;
+	int ok = 0;
+	ruch rucht;
+	point ptg;
+	for(int i=0;i<9;i++){
+		if(table[pt.x-4+i][pt.y]){
+			if(ok > 0){
+				if(!conection[pt.y*size+pt.x-4+i-1][pt.y*size+pt.x-4+i])
+					ok += 1;
+				else{
+					pon = 0;
+					ok = 1;
+				}
+			}else{
+				ok = 1;
+			}
+		}else{
+			if(pon == 1){
+				ok = pt.x-4+i-ptg.x;
+				ptg.x = pt.x-4+i;
+				ptg.y = pt.y;
+			}
+			else{
+				pon = 1;
+				ptg.x = pt.x-4+i;
+				ptg.y = pt.y;
+				ok += 1;
+			}
+		}
+		if(ok > 4 && (pon == 1 && (pt.x-4+i-ptg.x)<5)){
+			rucht.nr=numer;
+			rucht.pt.x=ptg.x;
+			rucht.pt.y=ptg.y;
+			rucht.pol.beg.x=pt.x-4+i-4;
+			rucht.pol.beg.y=pt.y;
+			rucht.pol.end.x=pt.x-4+i;
+			rucht.pol.end.y=pt.y;
+			if(extend2(rucht)){
+				while(ill--){
+					ruchy_size--;
+					ruchy2_size--;
+					wynik--;
+				}
+				ruchy[ruchy_size]=rucht;
+				ruchy_size++;
+				ruchy2[ruchy2_size]=rucht;
+				ruchy2_size++;
+				wynik++;
+				break;
+			}
+			ruchy[ruchy_size]=rucht;
+			ruchy_size++;
+			ruchy2[ruchy2_size]=rucht;
+			ruchy2_size++;
+			ill++;
+			wynik++;
+		}
+	}
+	//pionowo
+	ok = 0;
+	pon = 0;
+	ill=0;
+	for(int i = 0;i<9;i++){
+		if(table[pt.x][pt.y-4+i] == true){
+			if(ok > 0){
+				if(conection[(pt.y-4+i-1)*size + pt.x][(pt.y-4+i)*size + pt.x] == false){
+					ok += 1;
+				}
+				else{
+					pon =0;
+					ok =1;
+				}
+			}
+			else{
+				ok = 1;
+			}
+		}else{
+			if(pon == 1){
+				ok = pt.y-4+i-ptg.y;
+				ptg.x = pt.x;
+				ptg.y = pt.y-4+i;
+			}
+			else{
+				pon = 1;
+				ptg.x = pt.x;
+				ptg.y = pt.y-4+i;
+				ok += 1;
+			}
+		}
+		if(ok > 4 && (pon == 1 && (pt.y-4+i-ptg.y)<5)){
+			ruch rucht;
+			rucht.nr=numer;
+			rucht.pt=ptg;
+			rucht.pol.beg.x=pt.x;
+			rucht.pol.beg.y=pt.y-4+i-4;
+			rucht.pol.end.x=pt.x;
+			rucht.pol.end.y=pt.y-4+i;
+			if(extend2(rucht)){
+				while(ill--){
+					ruchy_size--;
+					ruchy2_size--;
+					wynik--;
+				}
+				ruchy[ruchy_size]=rucht;
+				ruchy_size++;
+				ruchy2[ruchy2_size]=rucht;
+				ruchy2_size++;
+				wynik++;
+				break;
+			}
+			ruchy[ruchy_size]=rucht;
+			ruchy_size++;
+			ruchy2[ruchy2_size]=rucht;
+			ruchy2_size++;
+			ill++;
+			wynik++;
+		}
+	}
+	//ukosL
+	ok = 0;
+	pon = 0;
+	ill=0;
+	for(int i=0;i<9;i++){
+		if(table[pt.x-4+i][pt.y-4+i] == true){
+			if(ok > 0){
+				if(conection[(pt.y-4+i-1)*size+pt.x-4+i-1][(pt.y-4+i)*size+pt.x-4+i] == false){
+					ok +=1;
+				}else{
+					pon = 0;
+					ok = 1;
+				}
+			}
+			else{
+				ok = 1;
+			}
+		}else{
+			if(pon == 1){
+				ok = pt.x-4+i-ptg.x;
+				ptg.x = pt.x-4+i;
+				ptg.y = pt.y-4+i;
+			}else{
+				pon = 1;
+				ptg.x = pt.x-4+i;
+				ptg.y = pt.y-4+i;
+				ok += 1;
+			}
+  		}
+		if(ok > 4 && (pon == 1 && (pt.x-4+i-ptg.x)<5)){
+			ruch rucht;
+			rucht.nr=numer;
+			rucht.pt=ptg;
+			rucht.pol.beg.x=pt.x-4+i-4;
+			rucht.pol.beg.y=pt.y-4+i-4;
+			rucht.pol.end.x=pt.x-4+i;
+			rucht.pol.end.y=pt.y-4+i;
+			if(extend2(rucht)){
+				while(ill--){
+					ruchy_size--;
+					ruchy2_size--;
+					wynik--;
+				}
+				ruchy[ruchy_size]=rucht;
+				ruchy_size++;
+				ruchy2[ruchy2_size]=rucht;
+				ruchy2_size++;
+				wynik++;
+				break;
+			}
+			ruchy[ruchy_size]=rucht;
+			ruchy_size++;
+			ruchy2[ruchy2_size]=rucht;
+			ruchy2_size++;
+			ill++;
+			wynik++;
+		}
+	}
+	//ukos_P
+	ok = 0;
+	pon = 0;
+	ill=0;
+	for(int i=0;i<9;i++){
+		if(table[pt.x+4-i][pt.y-4+i] == true){
+			if(ok > 0){
+            if(conection[(pt.y-4+i-1)*size+pt.x+4-i+1][(pt.y-4+i)*size+pt.x+4-i] == false){
+					ok += 1;
+				}else{
+					ok = 1;
+					pon = 0;
+				}
+			}
+			else{
+				ok = 1;
+			}
+		}
+		else{
+         if(pon == 1){
+				ok = pt.y-4+i-ptg.y;
+				ptg.x = pt.x+4-i;
+				ptg.y = pt.y-4+i;
+			}
+			else{
+				pon = 1;
+				ptg.x = pt.x+4-i;
+				ptg.y = pt.y-4+i;
+				ok += 1;
+			}
+		}
+		if(ok > 4 && (pon == 1 && (pt.y-4+i-ptg.y)<5)){
+			ruch rucht;
+			rucht.nr=numer;
+			rucht.pt=ptg;
+			rucht.pol.beg.x=pt.x+4-i+4;
+			rucht.pol.beg.y=pt.y-4+i-4;
+			rucht.pol.end.x=pt.x+4-i;
+			rucht.pol.end.y=pt.y-4+i;
+			if(extend2(rucht)){
+				while(ill--){
+					ruchy_size--;
+					ruchy2_size--;
+					wynik--;
+				}
+				ruchy[ruchy_size]=rucht;
+				ruchy_size++;
+				ruchy2[ruchy2_size]=rucht;
+				ruchy2_size++;
+				wynik++;
+				break;
+			}
+			ruchy[ruchy_size]=rucht;
+			ruchy_size++;
+			ruchy2[ruchy2_size]=rucht;
+			ruchy2_size++;
+			ill++;
+			wynik++;
+		}
+	}
+	return wynik;
+}
