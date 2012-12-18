@@ -1,6 +1,10 @@
 #include <iostream>
 #include <vector>
 #include <math.h>
+#include <fstream>
+#include<algorithm>
+#include <cstdio>
+#include <sstream>
 #include <time.h>
 
 using namespace std;
@@ -79,7 +83,7 @@ inline bool extend(move m){
 /*#######################################################################
 	Funkcja: ADD_NEW_MOVE
 	Argumenty: point pt
-	Zwraca: int liczba ruchów dodanych
+	Zwraca: int liczba ruchĂłw dodanych
 	Cel: dodaje nowe moves po dodaniu punktu, aktualizuje wektor moves i moves2.
 	jest odporna na bezsensowne moves bez polaczen.
   #######################################################################*/
@@ -322,15 +326,15 @@ void add_connection(move m){
 		con.y=SIZE*(m.bgn.y+(i+1)*dir_y[m.dir])+m.bgn.x+(i+1)*dir_x[m.dir];
 		connections[con.x][con.y]=true;
 		connections[con.y][con.x]=true;
-		connections_clear[connections_clear_size]=con;
 		connections_clear_size++;
+		connections_clear[connections_clear_size]=con;
 	}
 }
 void clear_all(){
 	while(connections_clear_size!=0){
-   	connections[connections_clear[connections_clear_size].x][connections_clear[connections_clear_size].y]=false;
-   	connections[connections_clear[connections_clear_size].y][connections_clear[connections_clear_size].x]=false;
-   	connections_clear_size--;
+   		connections[connections_clear[connections_clear_size].x][connections_clear[connections_clear_size].y]=false;
+   		connections[connections_clear[connections_clear_size].y][connections_clear[connections_clear_size].x]=false;
+   		connections_clear_size--;
 	}
 	while(points_clear_size!=0){
 		points[points_clear[points_clear_size].x][points_clear[points_clear_size].y]=false;
@@ -396,19 +400,21 @@ int random_game(){
 	int max_ile=0;
 	while(1){
 		clear_all();
+		//show_points();
+		//cin>>ile;
 		ile=0;
 		set_cross();
 		while(!available_moves_size==0){
 			move_exe = available_moves[rand()%available_moves_size];
 			//cout<<move_exe.pnt.x-20<<" "<<move_exe.pnt.y-19<<" "<<move_exe.bgn.x-20<<" "<<move_exe.bgn.y-19<<" "<<move_exe.bgn.x+4*dir_x[move_exe.dir]-20<<" "<<move_exe.bgn.y+4*dir_y[move_exe.dir]-19<<"\n";
 			add_connection(move_exe);
-		   add_point(move_exe.pnt);
-		   points_clear[points_clear_size]=move_exe.pnt;
-		   points_clear_size++;
-		   remove();
-		   ile++;
+		   	add_point(move_exe.pnt);
+		   	points_clear_size++;
+		   	points_clear[points_clear_size]=move_exe.pnt;
+		   	remove();
+		   	ile++;
 		}
-		if (max_ile<ile){
+		if(max_ile<ile){
 			max_ile=ile;
 			cout<<ile<<"\n";
 		}
