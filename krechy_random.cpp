@@ -1,10 +1,11 @@
-#include <iostream>
-#include <vector>
-#include <math.h>
-#include <fstream>
+#include<iostream>
+#include<vector>
 #include<algorithm>
 #include <cstdio>
 #include <sstream>
+#include <iostream>
+#include <fstream>
+#include <math.h>
 #include <time.h>
 
 using namespace std;
@@ -12,7 +13,7 @@ using namespace std;
 const int SIZE = 40;
 
 struct point{
-  int x;
+	int x;
 	int y;
 };
 
@@ -36,6 +37,9 @@ short int points_clear_size=0;
 bool connections[SIZE*SIZE][SIZE*SIZE];
 point connections_clear[1000];
 short int connections_clear_size = 0;
+
+move save_moves[1000];
+short int save_moves_size=0;
 
 int dir_x[4]={-1,0,1,1};
 int dir_y[4]={1,1,1,0};
@@ -394,32 +398,50 @@ void remove(){
 	available_moves_size=pop_size;
 }
 
+char name[10];
+void save(int score){
+	move m;
+	ostringstream os;
+	os << score;
+	string str = os.str();
+	str = str+".txt";
+   	for(int i=0; i<str.size(); i++)
+		name[i]=str[i];
+	std::ofstream o(name);
+	for(int i=0;i<score;i++){
+		m=save_moves[i];
+		o<<m.pnt.x-20<<" "<<m.pnt.y-19<<" "<<m.bgn.x-20<<" "<<m.bgn.y-19<<" "<<m.bgn.x+4*dir_x[m.dir]-20<<" "<<m.bgn.y+4*dir_y[m.dir]-19<<"\n";
+	}
+}
+
+
 int random_game(){
 	move move_exe;
 	int ile=0;
 	int max_ile=0;
 	while(1){
 		clear_all();
-		//show_points();
-		//cin>>ile;
-		ile=0;
+		save_moves_size=ile=0;
 		set_cross();
 		while(!available_moves_size==0){
 			move_exe = available_moves[rand()%available_moves_size];
-			//cout<<move_exe.pnt.x-20<<" "<<move_exe.pnt.y-19<<" "<<move_exe.bgn.x-20<<" "<<move_exe.bgn.y-19<<" "<<move_exe.bgn.x+4*dir_x[move_exe.dir]-20<<" "<<move_exe.bgn.y+4*dir_y[move_exe.dir]-19<<"\n";
 			add_connection(move_exe);
 		   	add_point(move_exe.pnt);
 		   	points_clear_size++;
 		   	points_clear[points_clear_size]=move_exe.pnt;
+		   	save_moves[save_moves_size]=move_exe;
+			save_moves_size++;
 		   	remove();
 		   	ile++;
 		}
 		if(max_ile<ile){
 			max_ile=ile;
-			cout<<ile<<"\n";
+			save(ile);
+			cout<<"score: "<<ile<<"\n";
 		}
 	}
 }
+
 int main(){
    srand ( unsigned ( time (NULL) ) );
    set_cross();
