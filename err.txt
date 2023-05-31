@@ -1,0 +1,44 @@
+public function get_maths_questions_post()
+    {
+        $is_user = $this->verify_token();
+        if (!$is_user['error']) {
+            $user_id = $is_user['user_id'];
+            $firebase_id = $is_user['firebase_id'];
+        } else {
+            $this->response($is_user, REST_Controller::HTTP_OK);
+            return false;
+        }
+        if ($this->AccessKey != $this->post('access_key')) {
+            $response['error'] = true;
+            $response['message'] = "101";
+        } else {
+            if ($this->post('type') && $this->post('type_id')) {
+                $type = $this->post('type');
+                $id = $this->post('type_id');
+
+                $this->db->where($type, $id);
+                $this->db->order_by($this->Order_By);
+                $data = $this->db->get('tbl_maths_question')->result_array();
+                if (!empty($data)) {
+                    for ($i = 0; $i < count($data); $i++) {
+                        $data[$i]['image'] = ($data[$i]['image']) ? base_url() . MATHS_QUESTION_IMG_PATH . $data[$i]['image'] : '';
+                        $data[$i]['optione'] = (is_option_e_mode_enabled() && $data[$i]['optione'] != null) ? trim($data[$i]['optione']) : '';
+                        $data[$i]['optiona'] = trim($data[$i]['optiona']);
+                        $data[$i]['optionb'] = trim($data[$i]['optionb']);
+                        $data[$i]['optionc'] = trim($data[$i]['optionc']);
+                        $data[$i]['optiond'] = trim($data[$i]['optiond']);
+                        $data[$i]['answer'] = $this->encrypt_data($firebase_id, trim($data[$i]['answer']));
+                    }
+                    $response['error'] = false;
+                    $response['data'] = $data;
+                } else {
+                    $response['error'] = true;
+                    $response['message'] = "102";
+                }
+            } else {
+                $response['error'] = true;
+                $response['message'] = "103";
+            }
+        }
+        $this->response($response, REST_Controller::HTTP_OK);
+    }
