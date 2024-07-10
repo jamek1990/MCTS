@@ -1,0 +1,56 @@
+transkrypcja w faster whisper zawiera halucynacje lub pusty tekst. jak ustawić parametry aby transkrypcja częściej kończyła się powodzeniem
+
+Rozumiem Twój problem z transkrypcją w Faster Whisper. Halucynacje lub pusty tekst to rzeczywiście frustrujące problemy. Oto kilka sugestii, jak możesz dostosować parametry, aby poprawić jakość i niezawodność transkrypcji:
+
+Dostosuj próg word_timestamps:
+pythonCopymodel.transcribe(audio, word_timestamps=True, condition_on_previous_text=True)
+Ustawienie word_timestamps=True może poprawić dokładność czasową i zmniejszyć halucynacje.
+Zwiększ beam_size:
+pythonCopymodel.transcribe(audio, beam_size=5)
+Większy beam_size (domyślnie 1) może poprawić jakość, ale kosztem wydajności.
+Dostosuj temperature:
+pythonCopymodel.transcribe(audio, temperature=0.0)
+Niższa temperatura (0.0-1.0) zmniejsza losowość i może ograniczyć halucynacje.
+Użyj initial_prompt:
+pythonCopymodel.transcribe(audio, initial_prompt="Transkrypcja dotyczy...")
+Daje kontekst modelowi, co może poprawić dokładność.
+Dostosuj compression_ratio_threshold:
+pythonCopymodel.transcribe(audio, compression_ratio_threshold=2.4)
+Pomaga w wykrywaniu i filtrowaniu powtarzających się treści.
+Użyj logprob_threshold:
+pythonCopymodel.transcribe(audio, logprob_threshold=-1.0)
+Filtruje mało prawdopodobne fragmenty transkrypcji.
+Zastosuj no_speech_threshold:
+pythonCopymodel.transcribe(audio, no_speech_threshold=0.6)
+Pomaga w rozróżnianiu między mową a ciszą.
+Wypróbuj różne modele:
+pythonCopymodel = WhisperModel("large-v2", device="cuda", compute_type="float16")
+Większe modele mogą dać lepsze wyniki, ale są wolniejsze.
+
+Przykładowy kod z kombinacją tych parametrów:
+pythonCopyfrom faster_whisper import WhisperModel
+
+model = WhisperModel("large-v2", device="cuda", compute_type="float16")
+
+result = model.transcribe(
+    "sciezka/do/pliku/audio.wav",
+    word_timestamps=True,
+    condition_on_previous_text=True,
+    beam_size=5,
+    temperature=0.0,
+    initial_prompt="To jest transkrypcja dotycząca...",
+    compression_ratio_threshold=2.4,
+    logprob_threshold=-1.0,
+    no_speech_threshold=0.6
+)
+
+for segment in result:
+    print(segment.text)
+Pamiętaj, że:
+
+Optymalne ustawienia mogą się różnić w zależności od charakteru Twoich nagrań.
+Eksperymentuj z różnymi kombinacjami parametrów na małej próbce danych.
+Jakość wejściowego audio ma duży wpływ na wynik - rozważ wstępne przetwarzanie audio.
+Większe modele i bardziej rygorystyczne ustawienia mogą znacząco zwiększyć czas przetwarzania.
+
+Czy chciałbyś, żebym wyjaśnił działanie któregoś z tych parametrów bardziej szczegółowo?
