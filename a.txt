@@ -1,0 +1,18 @@
+1.
+If we want to prevent frauds – customers and employees must know that we are controlling and reacting.
+One of our KPI show that we want to know about fraud events from alerts not from customer complaints.
+We are implementing automatic monitoring with containing many anomaly detection algorithms.
+On this slide we can see anomaly detection based on transactional connection of individual customers.
+Nodes is accounts. Edges is transactions between them when higher then 1k PLN.
+The largest graph component shows anomaly. 
+For example:
+•	Long chain transitions where customer uses special offers for opening new accounts
+•	Using a individual account to conduct business activities.
+2.
+Fraud detection requires connecting many points (many sources of data). 
+For example:
+4 people have the same phone number – family; customer know each other; close relationship
+4 people have the same phone number – a dishonest employee modified the number to perform unamortized transactions – fraud
+So We don’t know… 
+To minimize False/Positive alerts we must add more views, system logs, AML alerts, HR alerst ets.
+We must connected dots.
