@@ -1,0 +1,39 @@
+import os
+import face_recognition
+import numpy as np
+from PIL import Image
+
+def compare_faces(folder_path):
+    known_face_encodings = []
+    known_face_names = []
+
+    # Przejdź przez wszystkie pliki JPG w folderze
+    for filename in os.listdir(folder_path):
+        if filename.endswith(".jpg"):
+            file_path = os.path.join(folder_path, filename)
+            
+            # Wczytaj obraz i znajdź twarze
+            image = face_recognition.load_image_file(file_path)
+            face_encodings = face_recognition.face_encodings(image)
+            
+            if len(face_encodings) > 0:
+                # Weź pierwszą znalezioną twarz
+                face_encoding = face_encodings[0]
+                
+                # Porównaj z już znanymi twarzami
+                matches = face_recognition.compare_faces(known_face_encodings, face_encoding)
+                
+                if True in matches:
+                    # Jeśli znaleziono dopasowanie, wypisz informację
+                    matched_index = matches.index(True)
+                    print(f"Znaleziono dopasowanie: {filename} i {known_face_names[matched_index]}")
+                else:
+                    # Jeśli nie znaleziono dopasowania, dodaj do znanych twarzy
+                    known_face_encodings.append(face_encoding)
+                    known_face_names.append(filename)
+            else:
+                print(f"Nie znaleziono twarzy na zdjęciu: {filename}")
+
+# Użyj funkcji
+folder_path = "ścieżka/do/twojego/folderu"
+compare_faces(folder_path)
