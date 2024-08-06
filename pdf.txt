@@ -25,3 +25,35 @@ pdf_path = "sciezka/do/twojego/pit.pdf"
 result = extract_financial_data(pdf_path)
 print(f"Dochód: {result['income']}")
 print(f"Strata: {result['loss']}")
+
+
+import pytesseract
+from pdf2image import convert_from_path
+import re
+
+def extract_financial_data_ocr(pdf_path):
+    # Konwertuj PDF na obrazy
+    images = convert_from_path(pdf_path)
+    
+    # Ekstrahuj tekst z wszystkich stron
+    text = ""
+    for image in images:
+        text += pytesseract.image_to_string(image, lang='pol')
+    
+    # Przykładowe wyrażenia regularne - należy dostosować do konkretnego formatu PIT
+    income_pattern = r"Dochód:?\s*(\d+[\s,.]?\d*)"
+    loss_pattern = r"Strata:?\s*(\d+[\s,.]?\d*)"
+    
+    income = re.search(income_pattern, text)
+    loss = re.search(loss_pattern, text)
+    
+    return {
+        "income": income.group(1).replace(" ", "") if income else "Nie znaleziono",
+        "loss": loss.group(1).replace(" ", "") if loss else "Nie znaleziono"
+    }
+
+# Użycie funkcji
+pdf_path = "sciezka/do/twojego/pit.pdf"
+result = extract_financial_data_ocr(pdf_path)
+print(f"Dochód: {result['income']}")
+print(f"Strata: {result['loss']}")
