@@ -57,3 +57,27 @@ pdf_path = "sciezka/do/twojego/pit.pdf"
 result = extract_financial_data_ocr(pdf_path)
 print(f"Dochód: {result['income']}")
 print(f"Strata: {result['loss']}")
+
+
+import re
+
+pattern = r'\b(?:\d+\s?)*\d+,\d{2}\b'
+
+test_strings = [
+    "123,45",
+    "1 234,56",
+    "12 34 56,78",
+    "1234,5",  # Nie powinno pasować (tylko jedna cyfra po przecinku)
+    "1234.56",  # Nie powinno pasować (kropka zamiast przecinka)
+    "1,23",  # Nie powinno pasować (tylko jedna cyfra przed przecinkiem)
+    "1 234,567",  # Nie powinno pasować (trzy cyfry po przecinku)
+    "1 234 567,89",
+    "10 000 000,00",
+]
+
+for string in test_strings:
+    matches = re.findall(pattern, string)
+    if matches:
+        print(f"Dopasowano: {matches}")
+    else:
+        print(f"Nie dopasowano: {string}")
