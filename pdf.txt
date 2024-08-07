@@ -81,3 +81,24 @@ for string in test_strings:
         print(f"Dopasowano: {matches}")
     else:
         print(f"Nie dopasowano: {string}")
+
+import re
+
+def extract_between_tags(text, start_tag, end_tag):
+    pattern = rf"{start_tag}(.*?){end_tag}"
+    match = re.search(pattern, text, re.DOTALL)
+    return match.group(1).strip() if match else None
+
+# Przykładowy tekst
+sample_text = """
+<FAMILY_NAME>
+Kowalski
+</FAMILY_NAME>
+Inne informacje...
+<IMIONA RODZICÓW>
+Jan i Anna
+</IMIONA RODZICÓW>
+"""
+
+result = extract_between_tags(sample_text, r"<FAMILY_NAME>", r"<IMIONA RODZICÓW>")
+print(result)
