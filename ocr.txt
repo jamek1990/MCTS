@@ -1,0 +1,69 @@
+import cv2
+import numpy as np
+import pytesseract
+
+def extract_cells(image_path):
+    # Wczytaj obraz
+    image = cv2.imread(image_path)
+    
+    # Konwersja do skali szarości
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    
+    # Adaptive Thresholding dla wyraźnego binarnego obrazu
+    thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                   cv2.THRESH_BINARY_INV, 11, 2)
+    
+    # Detekcja linii poziomych
+    horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (40, 1))
+    detect_horizontal = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, horizontal_kernel, iterations=2)
+    
+    # Detekcja linii pionowych
+    vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 40))
+    detect_vertical = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, vertical_kernel, iterations=2)
+    
+    # Łączenie linii pionowych i poziomych, aby uzyskać pełną siatkę
+    grid = cv2.addWeighted(detect_horizontal, 0.5, detect_vertical, 0.5, 0.0)
+    
+    # Wypełnianie dziur w siatce tabeli
+    grid = cv2.dilate(grid, np.ones((3, 3), np.uint8))
+    
+    # Znalezienie konturów komórek
+    contours, _ = cv2.findContours(grid, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    
+    # Lista do przechowywania wyników
+    results = []
+    i = 0
+    for cnt in contours:
+        i = i + 1
+        x, y, w, h = cv2.boundingRect(cnt)
+
+        # Filtracja bardzo małych konturów
+        if w > 5 and h > 5:
+            # Wycięcie komórki z obrazu
+            cell = image[y:y+h, x:x+w]
+            cv2.imwrite(f'image/div/c{i}.jpg',cell)
+            # OCR na wyodrębnionej komórce
+            text = pytesseract.image_to_string(cell, config='--psm 3').strip()
+            print(['text',text])
+            if text:
+                # Zakładamy, że numer pozycji jest na początku, a kwota na końcu tekstu
+                parts = text.split('\n')
+                if len(parts) >= 2:
+                    position_number = parts[0].strip()
+                    amount = parts[-1].strip()
+                    results.append((position_number, amount))
+                else:
+                    results.append((None, text))
+    
+    # Sortowanie wyników na podstawie pozycji x, y
+    #results.sort(key=lambda x: (x[0] if x[0] else float('inf'), x[1]))
+
+    return results
+
+# Wczytaj i przetwórz obraz
+image_path = r"image/test.jpg"
+results = extract_cells(image_path)
+
+# Wyświetlenie wyników
+for result in results:
+    print(f'Pozycja: {result[0]}, Kwota: {result[1]}')
