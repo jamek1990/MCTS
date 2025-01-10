@@ -1,0 +1,489 @@
+w folderze COM mam podfoldery z datą "20250110", "20250109' itd. w każdym z folderów jest kilka tysięcy plików. Napisz program w python (uruchamiany na windows) do usuwania plików i podfolderów jeśli spełniony jest 1 z powyższych warunków: data podfolderu jest starsza niż 5 dni lub sumaryczny rozmiar plików  (zajętość na dysku) ze wszystkich folderów jest większa niż 100GB (w tym przypadku usuwamy najstarszy folder)
+ChatGPT
+
+Thought about folder cleanup in Python przez 30 sekund(y)
+Poniżej znajduje się przykładowy skrypt w Pythonie (uruchamiany na Windows), który realizuje opisane wymagania:
+
+Usuwa podfoldery w folderze COM, jeśli ich nazwa (będąca datą w formacie YYYYMMDD) jest starsza niż 5 dni.
+Jeśli po tym kroku łączny rozmiar wszystkich pozostałych podfolderów (i plików w nich zawartych) przekracza 100 GB, usuwa najstarszy (czyli „najwcześniejszy” w sensie daty) folder.
+Uwaga:
+
+Skrypt zakłada, że nazwy podfolderów są dokładnie w formacie daty YYYYMMDD (np. 20250110).
+Rozmiar sprawdzany jest w bajtach (B). 100 GB = 100 * 1024**3 bajtów.
+Do rekurencyjnego usuwania plików i podfolderów używa modułu shutil.
+Kod należy dostosować do swojej ścieżki bazowej (tj. gdzie znajduje się folder COM).
+python
+Skopiuj kod
+import os
+import shutil
+from datetime import datetime, timedelta
+
+# ŚCIEŻKA DO FOLDERU COM
+BASE_PATH = r"C:\sciezka\do\COM"
+
+# PRÓG ROZMIARU DANYCH (w GB), po przekroczeniu którego usuwamy najstarszy folder
+GB_THRESHOLD = 100
+
+def parse_date_from_folder_name(folder_name: str) -> datetime:
+    """
+    Parsuje nazwę folderu jako datę w formacie YYYYMMDD.
+    Jeśli nazwa nie jest poprawna, rzuca ValueError.
+    """
+    return datetime.strptime(folder_name, "%Y%m%d")
+
+def is_folder_older_than_5_days(folder_date: datetime) -> bool:
+    """
+    Sprawdza, czy data folderu jest starsza niż 5 dni względem 'teraz'.
+    """
+    return folder_date < (datetime.now() - timedelta(days=5))
+
+def get_folder_size_in_bytes(folder_path: str) -> int:
+    """
+    Zwraca całkowity rozmiar (w bajtach) wszystkich plików znajdujących się
+    w folderze i we wszystkich podfolderach (rekurencyjnie).
+    """
+    total_size = 0
+    for dirpath, dirnames, filenames in os.walk(folder_path):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            # Pomijamy dowiązania symboliczne, jeśli wystąpią
+            if os.path.exists(fp) and not os.path.islink(fp):
+                total_size += os.path.getsize(fp)
+    return total_size
+
+def remove_folder(folder_path: str):
+    """
+    Usuwa rekurencyjnie folder wraz z całą jego zawartością.
+    """
+    shutil.rmtree(folder_path)
+
+def main():
+    # Krok 1: Usuwanie folderów starszych niż 5 dni
+    for folder_name in os.listdir(BASE_PATH):
+        folder_path = os.path.join(BASE_PATH, folder_name)
+
+        # Sprawdzamy tylko te elementy, które są folderami
+        if os.path.isdir(folder_path):
+            try:
+                folder_date = parse_date_from_folder_name(folder_name)
+            except ValueError:
+                # Jeśli nazwa folderu nie jest w formacie YYYYMMDD, pomijamy
+                continue
+
+            if is_folder_older_than_5_days(folder_date):
+                print(f"Usuwanie folderu starszego niż 5 dni: {folder_name}")
+                remove_folder(folder_path)
+
+    # Krok 2: Sprawdzenie całkowitego rozmiaru i ewentualne usunięcie najstarszego folderu
+    total_size = 0
+    subfolders = []  # Będziemy tu przechowywać (data_folderu, sciezka_folderu, nazwa_folderu, rozmiar_folderu)
+
+    for folder_name in os.listdir(BASE_PATH):
+        folder_path = os.path.join(BASE_PATH, folder_name)
+        if os.path.isdir(folder_path):
+            try:
+                folder_date = parse_date_from_folder_name(folder_name)
+            except ValueError:
+                continue  # pomijamy foldery niebędące datami
+
+            folder_size = get_folder_size_in_bytes(folder_path)
+            total_size += folder_size
+            subfolders.append((folder_date, folder_path, folder_name, folder_size))
+
+    # Jeśli łączna zajętość przekracza 100GB, usuwamy najstarszy folder
+    if total_size > GB_THRESHOLD * (1024 ** 3):
+        # Sortujemy foldery po dacie rosnąco (czyli najstarsza data będzie pierwsza)
+        subfolders.sort(key=lambda x: x[0])
+        oldest_folder = subfolders[0]  # (data_folderu, sciezka_folderu, nazwa_folderu, rozmiar_folderu)
+        print(f"Przekroczono próg {GB_THRESHOLD} GB. Usuwanie najstarszego folderu: {oldest_folder[2]}")
+        remove_folder(oldest_folder[1])
+
+if __name__ == "__main__":
+    main()
+Wyjaśnienie działania skryptu:
+Pobranie listy podfolderów w katalogu COM:
+
+Iterujemy po os.listdir(BASE_PATH).
+Usuwanie folderów starszych niż 5 dni:
+
+Dla każdego folderu próbujemy sparsować jego nazwę jako datę (YYYYMMDD). Jeśli się nie uda (ValueError), pomijamy.
+Porównujemy datę folderu z bieżącą datą (datetime.now()) i sprawdzamy, czy jest starsza niż 5 dni.
+Jeśli tak, to usuwamy rekurencyjnie cały folder (shutil.rmtree).
+Obliczanie łącznego rozmiaru pozostałych folderów:
+
+Ponownie przechodzimy po wszystkich folderach (które nie zostały usunięte).
+Parsujemy daty folderów, zliczamy rozmiar każdego (funkcja get_folder_size_in_bytes).
+Sprawdzenie, czy łączny rozmiar przekracza 100 GB:
+
+Jeśli total_size > 100 * 1024**3, usuwamy najstarszy (datowo) folder.
+W tym przykładzie usuwamy tylko jeden najstarszy folder (zgodnie z literalną interpretacją „w tym przypadku usuwamy najstarszy folder”).
+W razie potrzeby można zmodyfikować ostatni krok tak, by np. usuwać kolejne najstarsze foldery aż do zejścia poniżej 100GB – ale to zależy od ustaleń biznesowych/organizacyjnych.
+
+
+
+
+
+
+Powiedziałeś(-aś):
+czy możesz jeszcze poprawić ten program
+ChatGPT
+
+Thought about poprawa skryptu Python przez 5 sekund(y)
+Poniżej przedstawiam nieco ulepszoną wersję skryptu w Pythonie, która:
+
+Usuwa foldery starsze niż 5 dni.
+Następnie sprawdza rozmiar i usuwa kolejne najstarsze foldery, dopóki łączny rozmiar nie spadnie poniżej ustalonego progu (100 GB) albo dopóki nie skończą się foldery.
+Dodatkowe uwagi / usprawnienia:
+
+Usuwamy kolejne najstarsze foldery, jeśli rozmiar wciąż przekracza limit (a nie tylko jeden najstarszy).
+Dodajemy nieco więcej logów w print(), żeby łatwiej było śledzić działanie.
+Sprawdzamy, czy folder w ogóle istnieje (np. gdyby wątek równoległy usunął go wcześniej) tuż przed usunięciem.
+python
+Skopiuj kod
+import os
+import shutil
+from datetime import datetime, timedelta
+
+# ŚCIEŻKA DO FOLDERU COM
+BASE_PATH = r"C:\sciezka\do\COM"
+
+# PRÓG ROZMIARU DANYCH (w GB)
+GB_THRESHOLD = 100
+
+def parse_date_from_folder_name(folder_name: str) -> datetime:
+    """
+    Parsuje nazwę folderu jako datę w formacie YYYYMMDD.
+    Jeśli nazwa nie jest poprawna, rzuca ValueError.
+    """
+    return datetime.strptime(folder_name, "%Y%m%d")
+
+def is_folder_older_than_5_days(folder_date: datetime) -> bool:
+    """
+    Sprawdza, czy data folderu jest starsza niż 5 dni względem "teraz".
+    """
+    return folder_date < (datetime.now() - timedelta(days=5))
+
+def get_folder_size_in_bytes(folder_path: str) -> int:
+    """
+    Zwraca całkowity rozmiar (w bajtach) wszystkich plików znajdujących się
+    w folderze i we wszystkich podfolderach (rekurencyjnie).
+    """
+    total_size = 0
+    for dirpath, dirnames, filenames in os.walk(folder_path):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            # Pomijamy dowiązania symboliczne, jeśli wystąpią
+            if os.path.exists(fp) and not os.path.islink(fp):
+                total_size += os.path.getsize(fp)
+    return total_size
+
+def remove_folder(folder_path: str):
+    """
+    Usuwa rekurencyjnie folder wraz z całą jego zawartością.
+    """
+    if os.path.exists(folder_path):
+        shutil.rmtree(folder_path)
+    else:
+        print(f"Folder {folder_path} nie istnieje (mógł zostać usunięty).")
+
+def main():
+    # 1. Usuwanie folderów starszych niż 5 dni
+    print("=== KROK 1: Usuwanie folderów starszych niż 5 dni ===")
+    for folder_name in os.listdir(BASE_PATH):
+        folder_path = os.path.join(BASE_PATH, folder_name)
+
+        if os.path.isdir(folder_path):
+            try:
+                folder_date = parse_date_from_folder_name(folder_name)
+            except ValueError:
+                # Jeśli nazwa folderu nie jest w formacie YYYYMMDD, pomijamy
+                continue
+
+            if is_folder_older_than_5_days(folder_date):
+                print(f"Usuwanie folderu: {folder_name} (starszy niż 5 dni)")
+                remove_folder(folder_path)
+
+    # 2. Obliczenie łącznego rozmiaru i ewentualne usunięcie najstarszych folderów
+    print("\n=== KROK 2: Sprawdzanie łącznego rozmiaru i usuwanie najstarszych folderów w razie potrzeby ===")
+
+    # Funkcja do pobrania aktualnej listy subfolderów (po kroku 1)
+    def collect_folders():
+        folders = []
+        for fn in os.listdir(BASE_PATH):
+            fp = os.path.join(BASE_PATH, fn)
+            if os.path.isdir(fp):
+                try:
+                    fd = parse_date_from_folder_name(fn)
+                except ValueError:
+                    # pomijamy foldery niebędące datami
+                    continue
+                size = get_folder_size_in_bytes(fp)
+                folders.append((fd, fp, fn, size))
+        return folders
+
+    subfolders = collect_folders()
+    total_size = sum(f[3] for f in subfolders)
+
+    print(f"Aktualna zajętość: {round(total_size / (1024**3), 2)} GB")
+
+    threshold_bytes = GB_THRESHOLD * (1024 ** 3)
+    # Sprawdzamy, czy łączny rozmiar przekracza 100 GB
+    while total_size > threshold_bytes and subfolders:
+        # Sortujemy foldery po dacie rosnąco (najstarsze najpierw)
+        subfolders.sort(key=lambda x: x[0])
+        oldest_folder = subfolders[0]  # (data_folderu, sciezka_folderu, nazwa_folderu, rozmiar_folderu)
+        print(f"Przekroczono próg {GB_THRESHOLD} GB. Usuwanie najstarszego folderu: {oldest_folder[2]}")
+
+        remove_folder(oldest_folder[1])
+        
+        # Po usunięciu - odświeżamy listę folderów i łączny rozmiar
+        subfolders = collect_folders()
+        total_size = sum(f[3] for f in subfolders)
+        print(f"Aktualna zajętość po usunięciu: {round(total_size / (1024**3), 2)} GB")
+
+    print("\nGotowe. Wszystkie zbędne foldery zostały usunięte.")
+
+if __name__ == "__main__":
+    main()
+Co zostało zmienione / ulepszone?
+Usuwanie wielu najstarszych folderów aż do zejścia poniżej progu
+W oryginalnym przykładzie usuwaliśmy tylko jeden najstarszy folder i kończyliśmy pracę. Teraz w pętli while total_size > threshold_bytes usuwamy kolejno najstarsze foldery, dopóki łączna zajętość nie spadnie poniżej 100 GB (lub dopóki nie skończą się foldery).
+
+Zbieranie listy folderów
+Zamiast liczyć rozmiar w dwóch krokach, mamy wewnętrzną funkcję collect_folders(), która zwraca listę wszystkich podfolderów w formie krotek: (folder_date, folder_path, folder_name, folder_size). Możemy przez to łatwo odświeżać stan po każdym usunięciu folderu.
+
+Dodatkowe logi
+Dzięki kilku print() mamy podgląd, co dzieje się w każdym kroku (który folder jest usuwany, jaki jest aktualny rozmiar, itp.).
+
+Sprawdzanie istnienia folderu przed usunięciem
+Może się zdarzyć, że folder został już usunięty przez inny proces – przed wywołaniem shutil.rmtree sprawdzamy, czy folder jeszcze istnieje (os.path.exists(folder_path)).
+
+Zaokrąglanie aktualnego rozmiaru do 2 miejsc po przecinku
+Dla celów estetycznych łatwiej jest śledzić, ile GB pozostało.
+
+Dzięki tym usprawnieniom skrypt powinien lepiej radzić sobie z dużą liczbą folderów, a także w pełni zrealizuje założenia: usuwa foldery starsze niż 5 dni, a następnie dba o to, by całkowity rozmiar nie przekroczył 100 GB.
+
+
+
+
+
+
+Powiedziałeś(-aś):
+dziękuję, czy możesz jeszcze poprawić ten program
+ChatGPT
+
+Thought about python script improvements przez 5 sekund(y)
+Poniżej przedstawiam jeszcze bardziej rozbudowaną wersję skryptu, która nie tylko usuwa foldery starsze niż 5 dni i dba o całkowity rozmiar, ale oferuje również:
+
+Parametryzację: możemy z linii poleceń podać inny folder bazowy (--base-path), próg rozmiaru w GB (--gb-threshold) czy liczbę dni (--days), po których folder uznawany jest za „stary”.
+Logowanie (moduł logging): zamiast zwykłych print-ów. Daje to więcej możliwości konfiguracyjnych i pozwala np. zapisywać logi do pliku.
+Obsługę wyjątków (np. brak uprawnień do usunięcia folderu) z odpowiednimi komunikatami w logach.
+Usuwanie kolejnych najstarszych folderów aż do zejścia poniżej progu.
+Dzięki temu kod jest bardziej elastyczny i łatwiej go dostosować do różnych środowisk. Kod w dalszym ciągu bazuje na poprzednim rozwiązaniu.
+
+Kod źródłowy
+python
+Skopiuj kod
+import os
+import sys
+import shutil
+import logging
+import argparse
+from datetime import datetime, timedelta
+
+def setup_logger(log_level=logging.INFO):
+    """
+    Konfiguracja loggera.
+    - log_level: poziom logowania (np. logging.DEBUG, logging.INFO, logging.WARNING).
+    """
+    # Format wiadomości: data i godzina, poziom, wiadomość
+    log_format = "[%(asctime)s] [%(levelname)s] %(message)s"
+    
+    logging.basicConfig(
+        level=log_level,
+        format=log_format,
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
+
+def parse_date_from_folder_name(folder_name: str) -> datetime:
+    """
+    Parsuje nazwę folderu jako datę w formacie YYYYMMDD.
+    Jeśli nazwa nie jest poprawna, rzuca ValueError.
+    """
+    return datetime.strptime(folder_name, "%Y%m%d")
+
+def is_folder_older_than(folder_date: datetime, days: int) -> bool:
+    """
+    Sprawdza, czy data folderu jest starsza niż 'days' dni względem "teraz".
+    """
+    return folder_date < (datetime.now() - timedelta(days=days))
+
+def get_folder_size_in_bytes(folder_path: str) -> int:
+    """
+    Zwraca całkowity rozmiar (w bajtach) wszystkich plików znajdujących się
+    w folderze i we wszystkich podfolderach (rekurencyjnie).
+    """
+    total_size = 0
+    for dirpath, dirnames, filenames in os.walk(folder_path):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            # Pomijamy dowiązania symboliczne (jeśli wystąpią) i pliki, które mogły "zniknąć"
+            if os.path.exists(fp) and not os.path.islink(fp):
+                try:
+                    total_size += os.path.getsize(fp)
+                except OSError as e:
+                    logging.warning(f"Nie udało się pobrać rozmiaru pliku {fp}: {e}")
+    return total_size
+
+def remove_folder(folder_path: str):
+    """
+    Usuwa rekurencyjnie folder wraz z całą jego zawartością.
+    Obsługuje wyjątki, np. brak uprawnień.
+    """
+    if os.path.exists(folder_path):
+        try:
+            shutil.rmtree(folder_path)
+            logging.info(f"Usunięto folder: {folder_path}")
+        except OSError as e:
+            logging.error(f"Nie udało się usunąć folderu {folder_path}: {e}")
+    else:
+        logging.warning(f"Folder {folder_path} nie istnieje (mógł zostać usunięty).")
+
+def collect_folders(base_path: str):
+    """
+    Zwraca listę krotek: (folder_date, folder_path, folder_name, folder_size),
+    zawierającą tylko foldery, które mają nazwy w formacie YYYYMMDD.
+    """
+    folders = []
+    for fn in os.listdir(base_path):
+        fp = os.path.join(base_path, fn)
+        if os.path.isdir(fp):
+            try:
+                fd = parse_date_from_folder_name(fn)
+            except ValueError:
+                # pomijamy foldery niebędące datami
+                continue
+            size = get_folder_size_in_bytes(fp)
+            folders.append((fd, fp, fn, size))
+    return folders
+
+def main():
+    # ----- Konfiguracja argumentów z linii poleceń -----
+    parser = argparse.ArgumentParser(
+        description="Skrypt do usuwania starych folderów oraz utrzymywania rozmiaru poniżej zadanego progu."
+    )
+    parser.add_argument(
+        "--base-path",
+        type=str,
+        default=r"C:\sciezka\do\COM",
+        help="Ścieżka do folderu bazowego (domyślnie C:\\sciezka\\do\\COM)."
+    )
+    parser.add_argument(
+        "--days",
+        type=int,
+        default=5,
+        help="Liczba dni, po których foldery są uznawane za stare (domyślnie 5)."
+    )
+    parser.add_argument(
+        "--gb-threshold",
+        type=int,
+        default=100,
+        help="Próg rozmiaru w GB (domyślnie 100 GB)."
+    )
+    parser.add_argument(
+        "--log-level",
+        type=str,
+        default="INFO",
+        help="Poziom logowania: DEBUG, INFO, WARNING, ERROR, CRITICAL (domyślnie INFO)."
+    )
+    args = parser.parse_args()
+
+    # Inicjalizacja loggera z wybranym poziomem
+    numeric_log_level = getattr(logging, args.log_level.upper(), None)
+    if not isinstance(numeric_log_level, int):
+        print(f"Nieprawidłowy poziom logowania: {args.log_level}, ustawiam INFO")
+        numeric_log_level = logging.INFO
+    setup_logger(log_level=numeric_log_level)
+    
+    base_path = args.base_path
+    days = args.days
+    gb_threshold = args.gb_threshold
+
+    if not os.path.isdir(base_path):
+        logging.error(f"Podany katalog bazowy ({base_path}) nie istnieje lub nie jest katalogiem.")
+        sys.exit(1)
+
+    # ----- KROK 1: Usuwanie folderów starszych niż 'days' -----
+    logging.info(f"== KROK 1: Usuwanie folderów starszych niż {days} dni w {base_path} ==")
+    for folder_name in os.listdir(base_path):
+        folder_path = os.path.join(base_path, folder_name)
+
+        if os.path.isdir(folder_path):
+            try:
+                folder_date = parse_date_from_folder_name(folder_name)
+            except ValueError:
+                # Jeśli nazwa folderu nie jest w formacie YYYYMMDD, pomijamy
+                continue
+
+            if is_folder_older_than(folder_date, days):
+                logging.info(f"Folder {folder_name} jest starszy niż {days} dni. Usuwanie...")
+                remove_folder(folder_path)
+
+    # ----- KROK 2: Sprawdzenie całkowitego rozmiaru i usuwanie najstarszych folderów jeśli trzeba -----
+    logging.info(f"== KROK 2: Sprawdzanie łącznego rozmiaru i usuwanie najstarszych folderów, jeśli przekroczono {gb_threshold} GB ==")
+
+    subfolders = collect_folders(base_path)
+    total_size = sum(f[3] for f in subfolders)
+    threshold_bytes = gb_threshold * (1024 ** 3)
+
+    logging.info(f"Aktualna łączna zajętość (po kroku 1): ~{round(total_size / (1024**3), 2)} GB (próg: {gb_threshold} GB)")
+
+    # Usuwamy kolejne najstarsze foldery, aż zejdziemy poniżej progu
+    while total_size > threshold_bytes and subfolders:
+        # Sortujemy foldery po dacie rosnąco (najstarsze najpierw)
+        subfolders.sort(key=lambda x: x[0])
+        oldest_folder = subfolders[0]  # (folder_date, folder_path, folder_name, folder_size)
+
+        logging.warning(
+            f"Przekroczono próg {gb_threshold} GB (obecnie ~{round(total_size / (1024**3), 2)} GB). "
+            f"Usuwanie najstarszego folderu: {oldest_folder[2]}"
+        )
+        remove_folder(oldest_folder[1])
+        
+        # Odświeżamy listę folderów i obliczamy nowy rozmiar
+        subfolders = collect_folders(base_path)
+        total_size = sum(f[3] for f in subfolders)
+        logging.info(f"Aktualna zajętość po usunięciu: ~{round(total_size / (1024**3), 2)} GB")
+
+    logging.info("Skrypt zakończył działanie.")
+
+if __name__ == "__main__":
+    main()
+Co zostało zmienione / ulepszone?
+Argumenty z linii poleceń (moduł argparse):
+
+Możemy zdefiniować inny folder bazowy, próg rozmiaru (GB), liczbę dni czy poziom logowania.
+Pozwala to uruchamiać skrypt np. tak:
+bash
+Skopiuj kod
+python cleanup.py --base-path "D:\Dane\COM" --days 10 --gb-threshold 200 --log-level DEBUG
+Logowanie (moduł logging zamiast print):
+
+Wiadomości mają format z datą i godziną oraz poziomem logowania.
+Łatwiej później przekierować logi do pliku czy dostosować poziom szczegółowości.
+Obsługa wyjątków przy usuwaniu folderów i obliczaniu rozmiaru plików:
+
+Jeśli np. nie mamy uprawnień albo plik zostanie usunięty przez inny proces, logujemy błąd / ostrzeżenie.
+Skrypt nie „wysypie się” przy pierwszym napotkanym błędzie.
+Większa elastyczność:
+
+Można łatwo zmienić liczbę dni uznających folder za stary, z 5 na dowolną (np. --days 14).
+Można zmienić domyślną ścieżkę, np. uruchamiając z parametrem --base-path "/home/user/COM".
+Wielokrotne usuwanie najstarszych folderów:
+
+Jeśli dalej przekraczamy próg po usunięciu jednego folderu, usuwamy kolejne – dopóki nie zejdziemy poniżej gb_threshold (albo skończą się foldery).
+Czytelniejsza struktura kodu:
+
+Pojedyncze funkcje (collect_folders, remove_folder) mają jasno zdefiniowane zadania.
+Sekcje „KROK 1” i „KROK 2” w main() opisują kolejność operacji.
+Dzięki powyższym usprawnieniom skrypt jest bardziej uniwersalny, zabezpieczony przed typowymi błędami oraz łatwiejszy w utrzymaniu. Możesz oczywiście dalej rozszerzać jego funkcjonalności (np. zapisywać logi do pliku, obsłużyć nazwy folderów nieco inne niż YYYYMMDD, itp.) w zależności od potrzeb.
