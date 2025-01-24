@@ -1,0 +1,123 @@
+mam ramkę danych z krawędziami a - b chciałbym dla każdego wierzchołka wyznaczyć id spójnej składowej napisz kod  w python
+ChatGPT
+
+Thought about spójne składowe w grafie przez 16 sekund(y)
+Poniżej znajduje się przykładowe rozwiązanie w Pythonie, które wykorzystuje bibliotekę networkx do wyznaczenia identyfikatorów spójnych składowych dla wierzchołków w grafie zadanym krawędziami (a, b) w ramce danych pandas.
+
+Założenia
+Masz ramkę danych df z kolumnami a i b, w której każdy wiersz oznacza jedną krawędź w grafie między wierzchołkiem a i wierzchołkiem b.
+Chcesz otrzymać informację, do której spójnej składowej należy każdy wierzchołek.
+Rozwiązanie z użyciem biblioteki networkx
+python
+Kopiuj
+import pandas as pd
+import networkx as nx
+
+# Przykładowe dane - zastąp własną ramką danych df
+df = pd.DataFrame({
+    'a': [1, 2, 2, 4, 7],
+    'b': [2, 3, 4, 5, 8]
+})
+
+# 1. Utworzenie grafu z krawędzi
+G = nx.from_pandas_edgelist(df, source='a', target='b')
+
+# 2. Wyznaczenie spójnych składowych
+#    nx.connected_components(G) zwraca listę zbiorów wierzchołków
+#    (każdy zbiór to jedna spójna składowa).
+connected_components = list(nx.connected_components(G))
+
+# 3. Słownik node -> component_id
+comp_id = {}
+for i, component in enumerate(connected_components):
+    for node in component:
+        comp_id[node] = i  # przypisanie ID spójnej składowej
+
+# 4. Utworzenie ramki danych z wierzchołkiem i jego ID składowej
+result_df = pd.DataFrame({
+    'vertex': list(comp_id.keys()),
+    'component_id': list(comp_id.values())
+})
+
+print(result_df)
+Efekt działania (dla przykładowych danych) może wyglądać następująco:
+
+Kopiuj
+   vertex  component_id
+0       1             0
+1       2             0
+2       3             0
+3       4             0
+4       5             0
+5       7             1
+6       8             1
+co oznacza, że wierzchołki (1,2,3,4,5) należą do pierwszej składowej, a (7,8) do drugiej.
+
+Rozwiązanie "czyste" w Pythonie bez networkx
+Jeżeli nie chcesz używać biblioteki networkx, możesz zaimplementować wyszukiwanie spójnych składowych przy pomocy DFS (ang. Depth-First Search) lub BFS (ang. Breadth-First Search). Przykład przy użyciu DFS:
+
+python
+Kopiuj
+import pandas as pd
+
+# Przykładowa ramka danych
+df = pd.DataFrame({
+    'a': [1, 2, 2, 4, 7],
+    'b': [2, 3, 4, 5, 8]
+})
+
+# 1. Budowa słownika sąsiedztwa (adjacency list)
+from collections import defaultdict
+
+graph = defaultdict(list)
+all_vertices = set()
+
+for idx, row in df.iterrows():
+    a, b = row['a'], row['b']
+    graph[a].append(b)
+    graph[b].append(a)    # ponieważ graf jest nieskierowany
+    all_vertices.add(a)
+    all_vertices.add(b)
+
+# 2. Funkcja DFS, która odwiedza wierzchołki i przypisuje im ID
+def dfs(start_vertex, comp_id, visited, comp_map):
+    stack = [start_vertex]
+    visited.add(start_vertex)
+    comp_map[start_vertex] = comp_id
+    
+    while stack:
+        vertex = stack.pop()
+        for neighbor in graph[vertex]:
+            if neighbor not in visited:
+                visited.add(neighbor)
+                comp_map[neighbor] = comp_id
+                stack.append(neighbor)
+
+# 3. Główna pętla wyznaczająca spójne składowe
+visited = set()
+comp_map = {}     # Słownik: wierzchołek -> numer spójnej składowej
+current_comp_id = 0
+
+for v in all_vertices:
+    if v not in visited:
+        dfs(v, current_comp_id, visited, comp_map)
+        current_comp_id += 1
+
+# 4. Stworzenie ramki danych z wynikiem
+result_df = pd.DataFrame({
+    'vertex': list(comp_map.keys()),
+    'component_id': list(comp_map.values())
+})
+
+print(result_df)
+W ten sposób również otrzymasz dla każdego wierzchołka numer (ID) spójnej składowej, do której on przynależy.
+
+Podsumowanie
+Z wykorzystaniem networkx:
+
+Najszybsze rozwiązanie, jeśli nie masz ograniczeń na biblioteki.
+Wystarczy stworzyć graf funkcją nx.from_pandas_edgelist(), a następnie wyznaczyć spójne składowe przez nx.connected_components().
+Bez dodatkowych bibliotek:
+
+Trzeba samodzielnie zbudować listę sąsiedztwa i wykonać DFS/BFS, aby odwiedzić wszystkie wierzchołki danej składowej i nadać im wspólny identyfikator.
+Oba podejścia pozwalają uzyskać słownik lub ramkę danych z mapowaniem: wierzchołek -> ID składowej, co odpowiada Twojemu zapotrzebowaniu.
