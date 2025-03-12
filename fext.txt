@@ -21,6 +21,7 @@ def extract_best_face(image_path, output_dir="extracted_faces", min_size=80):
         os.makedirs(output_dir)
     
     # Wczytanie obrazu za pomocą OpenCV i konwersja z BGR do RGB
+    # Zachowujemy oryginalną jakość obrazu
     img = cv2.imread(image_path)
     if img is None:
         print(f"Nie można wczytać obrazu: {image_path}")
@@ -31,8 +32,7 @@ def extract_best_face(image_path, output_dir="extracted_faces", min_size=80):
     # Inicjalizacja detektora MTCNN
     detector = MTCNN(min_face_size=min_size)
     
-    # Detekcja twarzy - używamy parametru z mniejszą czułością, aby przyspieszyć
-    # i zwiększyć dokładność dla dokumentów tożsamości
+    # Detekcja twarzy
     faces = detector.detect_faces(img_rgb)
     
     if not faces:
@@ -48,7 +48,17 @@ def extract_best_face(image_path, output_dir="extracted_faces", min_size=80):
         x, y, width, height = face['box']
         confidence = face['confidence']
         
-        # Wagi kryteriów jakości dla dokumentów tożsamości:
+        # Sprawdzenie czy współrzędne są poprawne
+        if x < 0 or y < 0 or width <= 0 or height <= 0:
+            continue
+            
+        # Zabezpieczenie przed wyjściem poza granice obrazu
+        if y + height > img_rgb.shape[0] or x + width > img_rgb.shape[1]:
+            # Przycinamy bounding box, aby nie wychodził poza granice
+            width = min(width, img_rgb.shape[1] - x)
+            height = min(height, img_rgb.shape[0] - y)
+        
+        # Kryteria jakości dla dokumentów tożsamości:
         # 1. Rozmiar twarzy (większy = lepszy)
         size_score = width * height
         
@@ -64,7 +74,6 @@ def extract_best_face(image_path, output_dir="extracted_faces", min_size=80):
         laplacian_var = cv2.Laplacian(gray_face, cv2.CV_64F).var()
         
         # Całkowita ocena jakości - dostosowana do dokumentów tożsamości
-        # Usunięto komponent pozycji, zwiększono wagę ostrości i pewności detekcji
         quality_score = (
             0.3 * size_score / (img.shape[0] * img.shape[1]) +  # Znormalizowany rozmiar
             0.4 * conf_score +                                  # Pewność detekcji
@@ -93,14 +102,15 @@ def extract_best_face(image_path, output_dir="extracted_faces", min_size=80):
     end_x = min(img.shape[1], x + width + margin_x)
     end_y = min(img.shape[0], y + height + margin_y)
     
+    # Wycinamy twarz z oryginalnego obrazu, zachowując jakość
     face_img = img_rgb[start_y:end_y, start_x:end_x]
     pil_face = Image.fromarray(face_img)
     
-    # Zapisz wyciętą twarz
+    # Zapisz wyciętą twarz z zachowaniem oryginalnej jakości
     base_filename = os.path.basename(image_path)
     filename, ext = os.path.splitext(base_filename)
     output_path = os.path.join(output_dir, f"{filename}_face{ext}")
-    pil_face.save(output_path)
+    pil_face.save(output_path, quality=100)  # Zapisujemy z najwyższą jakością
     
     print(f"Najlepsza twarz została zapisana w: {output_path}")
     print(f"Ocena jakości: {best_face['score']:.4f}")
@@ -144,92 +154,20 @@ def batch_extract_faces(input_dir, output_dir="extracted_faces", min_face_size=8
     print(f"Zakończono przetwarzanie. Przetworzono {len(results)} z {len(image_files)} obrazów.")
     return results
 
-# Funkcja do optymalizacji wstępnej obrazu, aby przyspieszyć detekcję
-def preprocess_image_for_id_documents(image_path, max_size=1200):
-    """
-    Optymalizuje obraz pod kątem detekcji twarzy na dokumentach tożsamości.
-    
-    Argumenty:
-        image_path (str): Ścieżka do obrazu
-        max_size (int): Maksymalny wymiar obrazu po skalowaniu
-    
-    Zwraca:
-        numpy.ndarray: Zoptymalizowany obraz
-    """
-    img = cv2.imread(image_path)
-    if img is None:
-        return None
-        
-    # Skalowanie obrazu, jeśli jest zbyt duży
-    height, width = img.shape[:2]
-    if max(height, width) > max_size:
-        scale = max_size / max(height, width)
-        img = cv2.resize(img, (int(width * scale), int(height * scale)))
-        
-    # Zwiększenie kontrastu dla lepszej detekcji twarzy
-    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
-    l, a, b = cv2.split(lab)
-    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
-    cl = clahe.apply(l)
-    enhanced_lab = cv2.merge((cl, a, b))
-    enhanced_img = cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
-    
-    return enhanced_img
-
-# Kompletna funkcja łącząca preprocessing i ekstrakcję twarzy
-def extract_face_from_id_document(image_path, output_dir="extracted_faces", min_face_size=80):
-    """
-    Kompletna funkcja do wycinania twarzy z dokumentów tożsamości z wstępnym przetwarzaniem.
-    
-    Argumenty:
-        image_path (str): Ścieżka do obrazu dokumentu
-        output_dir (str): Katalog wyjściowy
-        min_face_size (int): Minimalny rozmiar twarzy
-    
-    Zwraca:
-        str: Ścieżka do wyciętej twarzy
-    """
-    # Tymczasowy plik dla przetworzonego obrazu
-    temp_dir = os.path.join(output_dir, "temp")
-    if not os.path.exists(temp_dir):
-        os.makedirs(temp_dir)
-    
-    base_filename = os.path.basename(image_path)
-    temp_path = os.path.join(temp_dir, f"preprocessed_{base_filename}")
-    
-    # Wstępne przetwarzanie
-    enhanced_img = preprocess_image_for_id_documents(image_path)
-    if enhanced_img is None:
-        print(f"Nie można przetworzyć obrazu: {image_path}")
-        return None
-    
-    cv2.imwrite(temp_path, enhanced_img)
-    
-    # Ekstrakcja twarzy
-    face_path = extract_best_face(temp_path, output_dir, min_face_size)
-    
-    # Usunięcie tymczasowego pliku
-    if os.path.exists(temp_path):
-        os.remove(temp_path)
-    
-    return face_path
-
 # Przykład użycia
 if __name__ == "__main__":
     # Dla pojedynczego dokumentu tożsamości
-    # extract_face_from_id_document("ścieżka/do/dokumentu.jpg")
+    # extract_best_face("ścieżka/do/dokumentu.jpg")
     
     # Dla całego katalogu z dokumentami
     # batch_extract_faces("ścieżka/do/katalogu_z_dokumentami", "ścieżka/do/katalogu_wynikowego")
     
     # Przykładowe wywołanie
     document_path = "example_id.jpg"
-    extracted_face = extract_face_from_id_document(document_path)
+    extracted_face = extract_best_face(document_path)
     
     if extracted_face:
         print(f"Pomyślnie wyekstrahowano twarz z: {document_path}")
         print(f"Twarz zapisana w: {extracted_face}")
     else:
         print(f"Nie udało się wyekstrahować twarzy z: {document_path}")
-
-        
