@@ -1,0 +1,234 @@
+napisz kod w python
+który dla zadanej ramki df
+wybierze próbę spełniającą następujące kryteria;
+1. będzie zawierać wszystkie unikatowe wartości z df['id_emp']
+2. dla pól df[x] gdzie x in ('a','b','c','d'), będzie chciał wybrać próbę tak aby przynajmniej w 1 elemencie df[x] = 1 dla każdego x
+priorytet 1. > 2. oraz 'a' > 'b' > 'c' > 'd'
+próba ma zawierać  10 przypadków
+
+
+Zmodyfikowałem algorytm, aby w pierwszej kolejności skupiał się na różnorodności id_emp. Główne zmiany:
+
+Najwyższy priorytet dla różnorodności id_emp:
+
+Algorytm zaczyna od iterowania przez wszystkie unikalne wartości id_emp
+Dla każdego ID wybiera jeden rekord, który najlepiej przyczynia się do spełnienia wymagań dla kolumn
+
+
+Strategiczne wybieranie rekordów:
+
+Dla każdego id_emp algorytm inteligentnie wybiera rekord, który:
+
+Pomaga spełnić warunki dla niespełnionych kolumn zgodnie z priorytetami ('a' > 'b' > 'c' > 'd')
+Jednocześnie minimalizuje liczbę wartości 1 w kolumnach, aby maksymalizować różnorodność
+
+
+
+
+Dodatkowe kroki w razie potrzeby:
+
+Po przejściu przez wszystkie unikalne id_emp, sprawdza, czy wszystkie kolumny mają przynajmniej jeden rekord z wartością 1
+Jeśli nie, uzupełnia brakujące warunki, nadal preferując rekordy z nowymi wartościami id_emp
+
+
+Wypełnianie do wymaganego rozmiaru:
+
+Przy wypełnianiu próby do wymaganego rozmiaru 10 rekordów, algorytm:
+
+Najpierw dodaje pozostałe unikalne wartości id_emp, które jeszcze nie są w próbie
+Następnie dodaje rekordy, które maksymalizują różnorodność wartości 1 w kolumnach
+Preferuje rekordy z id_emp, które rzadziej występują w próbie
+
+
+
+
+
+Ten kod zapewnia, że:
+
+Maksymalna liczba różnych wartości id_emp jest reprezentowana w próbie
+Każda kolumna 'a', 'b', 'c', 'd' ma przynajmniej jeden rekord z wartością 1
+Wartości 1 są maksymalnie zdywersyfikowane pomiędzy rekordami
+Zachowana jest hierarchia priorytet
+
+import pandas as pd
+import numpy as np
+
+def select_sample(df, sample_size=10):
+    """
+    Wybiera próbę z ramki danych według priorytetów:
+    1. Maksymalna różnorodność id_emp (najwyższy priorytet)
+    2. Dla każdej kolumny z ('a','b','c','d') przynajmniej jeden rekord gdzie wartość = 1
+    3. Maksymalna dywersyfikacja wartości 1 w kolumnach ('a','b','c','d')
+    
+    Hierarchia priorytetów dla kolumn: 'a' > 'b' > 'c' > 'd'
+    
+    Parametry:
+    df (DataFrame): Ramka danych do próbkowania
+    sample_size (int): Docelowy rozmiar próby (domyślnie 10)
+    
+    Zwraca:
+    DataFrame: Zdywersyfikowana próba o rozmiarze sample_size (jeśli możliwe)
+    """
+    columns_to_check = ['a', 'b', 'c', 'd']
+    unique_ids = df['id_emp'].unique()
+    sample = pd.DataFrame()
+    
+    # Słownik do śledzenia, czy dla każdej kolumny mamy już rekord z wartością 1
+    column_satisfied = {col: False for col in columns_to_check}
+    
+    # Krok 1: Najpierw wybieramy różnorodne id_emp, które jednocześnie pomagają 
+    # spełnić warunki dla kolumn a, b, c, d
+    for id_val in unique_ids:
+        if len(sample) >= sample_size:
+            break
+            
+        # Pobieramy wszystkie rekordy dla tego id_emp
+        id_records = df[df['id_emp'] == id_val]
+        
+        # Sprawdzamy, których kolumn jeszcze nie spełniliśmy
+        unsatisfied_columns = [col for col, satisfied in column_satisfied.items() if not satisfied]
+        
+        if unsatisfied_columns:
+            # Sprawdzamy, czy rekordy z tym id_emp mogą pomóc spełnić niespełnione kolumny
+            # Tworzymy nową kolumnę, która liczy, ile niespełnionych kolumn może zostać spełnionych
+            id_records['helpful_score'] = id_records[unsatisfied_columns].sum(axis=1)
+            
+            # Sortujemy po helpful_score (malejąco) i liczbie jedynek w kolumnach (rosnąco)
+            id_records['total_ones'] = id_records[columns_to_check].sum(axis=1)
+            
+            # Najpierw próbujemy spełnić kolumny w kolejności priorytetów
+            best_record = None
+            for col in columns_to_check:
+                if not column_satisfied[col] and (id_records[col] == 1).any():
+                    col_candidates = id_records[id_records[col] == 1]
+                    # Wybieramy rekord z najmniejszą liczbą jedynek w innych kolumnach
+                    col_candidates['other_ones'] = col_candidates[[c for c in columns_to_check if c != col]].sum(axis=1)
+                    best_record = col_candidates.sort_values('other_ones').iloc[0]
+                    break
+            
+            # Jeśli nie znaleźliśmy rekordu specyficznego dla priorytetowej kolumny,
+            # wybieramy rekord, który spełnia jak najwięcej niespełnionych kolumn
+            if best_record is None:
+                if id_records['helpful_score'].max() > 0:
+                    best_record = id_records.sort_values(['helpful_score', 'total_ones'], 
+                                                        ascending=[False, True]).iloc[0]
+                else:
+                    # Jeśli żaden rekord nie pomoże spełnić niespełnionych kolumn,
+                    # wybieramy rekord z najmniejszą liczbą jedynek
+                    best_record = id_records.sort_values('total_ones').iloc[0]
+        else:
+            # Wszystkie kolumny są już spełnione, wybieramy rekord z najmniejszą liczbą jedynek
+            id_records['total_ones'] = id_records[columns_to_check].sum(axis=1)
+            best_record = id_records.sort_values('total_ones').iloc[0]
+        
+        # Dodajemy wybrany rekord do próby
+        sample = pd.concat([sample, pd.DataFrame([best_record])], ignore_index=True)
+        
+        # Aktualizujemy status kolumn
+        for col in columns_to_check:
+            if best_record[col] == 1:
+                column_satisfied[col] = True
+    
+    # Krok 2: Sprawdzamy, czy wszystkie kolumny zostały spełnione
+    unsatisfied_columns = [col for col, satisfied in column_satisfied.items() if not satisfied]
+    
+    # Jeśli są niespełnione kolumny i mamy miejsce w próbie, próbujemy je spełnić
+    if unsatisfied_columns and len(sample) < sample_size:
+        for col in unsatisfied_columns:
+            if len(sample) >= sample_size:
+                break
+                
+            # Szukamy rekordów, które mają wartość 1 dla tej kolumny
+            candidates = df[df[col] == 1]
+            
+            if not candidates.empty:
+                # Preferujemy id_emp, których jeszcze nie ma w próbie
+                selected_ids = set(sample['id_emp'])
+                new_id_candidates = candidates[~candidates['id_emp'].isin(selected_ids)]
+                
+                if not new_id_candidates.empty:
+                    candidates = new_id_candidates
+                
+                # Wybieramy rekord z najmniejszą liczbą jedynek w innych kolumnach
+                candidates['other_ones'] = candidates[[c for c in columns_to_check if c != col]].sum(axis=1)
+                best_candidate = candidates.sort_values('other_ones').iloc[0]
+                
+                sample = pd.concat([sample, pd.DataFrame([best_candidate])], ignore_index=True)
+                column_satisfied[col] = True
+    
+    # Krok 3: Jeśli nadal mamy miejsce w próbie, dodajemy rekordy z różnorodnymi id_emp
+    if len(sample) < sample_size:
+        # Identyfikatory, które już są w próbie
+        selected_ids = set(sample['id_emp'])
+        
+        # Dodajemy jeszcze nie wybrane id_emp, jeśli takie istnieją
+        remaining_ids = [id_val for id_val in unique_ids if id_val not in selected_ids]
+        
+        for id_val in remaining_ids:
+            if len(sample) >= sample_size:
+                break
+                
+            # Wybieramy rekord dla tego id z najmniejszą liczbą jedynek
+            id_records = df[df['id_emp'] == id_val]
+            id_records['total_ones'] = id_records[columns_to_check].sum(axis=1)
+            best_record = id_records.sort_values('total_ones').iloc[0]
+            
+            sample = pd.concat([sample, pd.DataFrame([best_record])], ignore_index=True)
+    
+    # Krok 4: Jeśli nadal mamy miejsce, dodajemy rekordy, które zwiększają różnorodność
+    if len(sample) < sample_size:
+        # Zliczamy, ile mamy wartości 1 dla każdej kolumny
+        column_counts = {col: sample[col].sum() for col in columns_to_check}
+        
+        # Wybieramy rekordy, które maksymalizują różnorodność
+        remaining = df.copy()
+        
+        # Wykluczamy rekordy, które są już w próbie
+        sample_indices = sample.index if not sample.empty else []
+        if not sample.empty and hasattr(sample.index, 'tolist'):
+            remaining = remaining[~remaining.index.isin(sample_indices)]
+        
+        while len(sample) < sample_size and not remaining.empty:
+            # Obliczamy punktację dla każdego rekordu - im mniej jedynek w kolumnach,
+            # które już mają dużo jedynek, tym lepiej
+            remaining['diversity_score'] = 0
+            
+            for col in columns_to_check:
+                weight = column_counts[col] * 10 if column_counts[col] > 0 else 0
+                remaining['diversity_score'] += remaining[col] * weight
+            
+            # Preferujemy rekordy z id_emp, które rzadziej występują w próbie
+            id_counts = sample['id_emp'].value_counts().to_dict()
+            remaining['id_count'] = remaining['id_emp'].map(lambda x: id_counts.get(x, 0))
+            
+            # Sortujemy po diversity_score (rosnąco) i id_count (rosnąco)
+            best_record = remaining.sort_values(['diversity_score', 'id_count']).iloc[0]
+            
+            # Dodajemy rekord do próby
+            sample = pd.concat([sample, pd.DataFrame([best_record])], ignore_index=True)
+            
+            # Aktualizujemy liczniki
+            for col in columns_to_check:
+                if best_record[col] == 1:
+                    column_counts[col] += 1
+            
+            # Usuwamy wybrany rekord z puli
+            remaining = remaining[remaining.index != best_record.name]
+    
+    # Krok 5: Jeśli mamy za dużo rekordów, zachowujemy tylko potrzebne sample_size
+    if len(sample) > sample_size:
+        sample = sample.iloc[:sample_size]
+    
+    return sample
+
+# Przykład użycia:
+# df = pd.DataFrame({
+#     'id_emp': [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7],
+#     'a': [0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0],
+#     'b': [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0],
+#     'c': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0],
+#     'd': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
+# })
+# 
+# sample = select_sample(df)
+# print(sample)
