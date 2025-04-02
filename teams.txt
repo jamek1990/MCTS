@@ -1,0 +1,194 @@
+import os
+import json
+import datetime
+import pypff
+from email.utils import parsedate_to_datetime
+
+def extract_teams_chats_from_pst(pst_file_path, output_folder):
+    """
+    Ekstrahuje chaty Teams z pliku PST Outlook i zapisuje je jako pliki JSON.
+    Koncentruje się na folderach SkypeSpacesData i TeamsMessagesData.
+    
+    Args:
+        pst_file_path (str): Ścieżka do pliku PST
+        output_folder (str): Folder, w którym zostaną zapisane pliki JSON
+    """
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+    
+    # Otwarcie pliku PST
+    print(f"Otwieranie pliku PST: {pst_file_path}")
+    pst_file = pypff.file()
+    pst_file.open(pst_file_path)
+    root = pst_file.get_root_folder()
+    
+    teams_folders = []
+    
+    # Funkcja do znajdowania folderów Teams
+    def find_teams_folders(folder, path=""):
+        found_folders = []
+        
+        folder_name = folder.get_name()
+        new_path = f"{path}/{folder_name}" if path else folder_name
+        
+        # Sprawdzanie, czy to jest jeden z szukanych folderów Teams
+        if folder_name in ["SkypeSpacesData", "TeamsMessagesData"]:
+            print(f"Znaleziono folder Teams: {new_path}")
+            found_folders.append((folder, new_path))
+        
+        # Rekurencyjne przejście przez podfoldery
+        for i in range(folder.get_number_of_sub_folders()):
+            sub_folder = folder.get_sub_folder(i)
+            sub_found = find_teams_folders(sub_folder, new_path)
+            found_folders.extend(sub_found)
+        
+        return found_folders
+    
+    # Funkcja do przetwarzania wiadomości Teams
+    def process_teams_messages(folder, folder_path):
+        chats_by_conversation = {}
+        
+        print(f"Przetwarzanie wiadomości w folderze: {folder_path}")
+        # Najpierw rekurencyjnie przetwarzamy podfoldery
+        for i in range(folder.get_number_of_sub_folders()):
+            sub_folder = folder.get_sub_folder(i)
+            sub_folder_name = sub_folder.get_name()
+            new_path = f"{folder_path}/{sub_folder_name}"
+            
+            sub_chats = process_teams_messages(sub_folder, new_path)
+            for conv_id, msgs in sub_chats.items():
+                if conv_id not in chats_by_conversation:
+                    chats_by_conversation[conv_id] = []
+                chats_by_conversation[conv_id].extend(msgs)
+        
+        # Przetwarzanie wiadomości w bieżącym folderze
+        msg_count = folder.get_number_of_sub_messages()
+        print(f"Znaleziono {msg_count} wiadomości w {folder_path}")
+        
+        for j in range(msg_count):
+            message = folder.get_sub_message(j)
+            
+            # Ekstrakcja danych wiadomości
+            try:
+                # Próba uzyskania ID konwersacji
+                conversation_id = "unknown_conversation"
+                if message.get_subject():
+                    conversation_id = message.get_subject()
+                elif message.get_conversation_topic():
+                    conversation_id = message.get_conversation_topic()
+                
+                # Czyszczenie ID konwersacji z niepotrzebnych znaków
+                conversation_id = conversation_id.replace("Conversation: ", "").strip()
+                
+                # Próba parsowania daty
+                if message.get_delivery_time():
+                    timestamp = datetime.datetime.fromtimestamp(message.get_delivery_time())
+                else:
+                    # Używanie alternatywnych pól, jeśli delivery_time nie jest dostępne
+                    headers = message.get_transport_headers() if message.get_transport_headers() else ""
+                    date_str = None
+                    for line in headers.split('\n'):
+                        if line.startswith("Date:"):
+                            date_str = line[5:].strip()
+                            break
+                    
+                    if date_str:
+                        try:
+                            timestamp = parsedate_to_datetime(date_str)
+                        except:
+                            timestamp = datetime.datetime.now()
+                    else:
+                        timestamp = datetime.datetime.now()
+                
+                # Ekstrakcja zawartości wiadomości
+                body = ""
+                if message.get_plain_text_body():
+                    body = message.get_plain_text_body().decode('utf-8', errors='replace')
+                elif message.get_html_body():
+                    body = message.get_html_body().decode('utf-8', errors='replace')
+                    # Możemy tutaj dodać prostą konwersję HTML do tekstu
+                    # To jest bardzo podstawowe podejście, można rozważyć użycie BeautifulSoup
+                    import re
+                    body = re.sub(r'<[^>]+>', ' ', body)
+                    body = re.sub(r'\s+', ' ', body).strip()
+                
+                # Ekstrakcja nadawcy
+                sender = ""
+                if message.get_sender_name():
+                    sender = message.get_sender_name()
+                elif message.get_header_value("From"):
+                    sender = message.get_header_value("From")
+                else:
+                    sender = "Unknown Sender"
+                
+                # Tworzenie struktury wiadomości
+                msg_data = {
+                    "id": f"{folder_path.replace('/', '_')}_{j}",
+                    "conversation_id": conversation_id,
+                    "sender": sender,
+                    "timestamp": timestamp.isoformat(),
+                    "content": body,
+                    "folder_path": folder_path
+                }
+                
+                # Dodawanie do odpowiedniej konwersacji
+                if conversation_id not in chats_by_conversation:
+                    chats_by_conversation[conversation_id] = []
+                chats_by_conversation[conversation_id].append(msg_data)
+                
+                if j % 100 == 0 and j > 0:
+                    print(f"Przetworzono {j}/{msg_count} wiadomości w {folder_path}")
+                
+            except Exception as e:
+                print(f"Błąd podczas przetwarzania wiadomości {j} w {folder_path}: {str(e)}")
+        
+        return chats_by_conversation
+    
+    # Znajdowanie folderów Teams
+    teams_folders = find_teams_folders(root)
+    
+    if not teams_folders:
+        print("Nie znaleziono folderów SkypeSpacesData ani TeamsMessagesData")
+        return 0
+    
+    # Przetwarzanie wszystkich znalezionych folderów Teams
+    all_chats = {}
+    for folder, path in teams_folders:
+        folder_chats = process_teams_messages(folder, path)
+        
+        # Łączenie konwersacji z różnych folderów
+        for conv_id, messages in folder_chats.items():
+            if conv_id not in all_chats:
+                all_chats[conv_id] = []
+            all_chats[conv_id].extend(messages)
+    
+    # Zapisywanie każdej konwersacji jako osobny plik JSON
+    print(f"Znaleziono {len(all_chats)} konwersacji")
+    for conv_id, messages in all_chats.items():
+        # Usuwanie zabronionych znaków z nazwy pliku
+        safe_conv_id = "".join(c if c.isalnum() or c in ['-', '_', ' '] else '_' for c in conv_id)
+        if len(safe_conv_id) > 100:  # Ograniczenie długości nazwy pliku
+            safe_conv_id = safe_conv_id[:100]
+        
+        # Sortowanie wiadomości według daty
+        messages.sort(key=lambda x: x["timestamp"])
+        
+        # Zapisywanie do pliku JSON
+        output_file = os.path.join(output_folder, f"{safe_conv_id}.json")
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(messages, f, ensure_ascii=False, indent=4)
+        
+        print(f"Zapisano konwersację '{safe_conv_id}' z {len(messages)} wiadomościami")
+    
+    # Zamykanie pliku PST
+    pst_file.close()
+    
+    return len(all_chats)
+
+# Przykład użycia:
+if __name__ == "__main__":
+    pst_file_path = input("Podaj ścieżkę do pliku PST: ")
+    output_folder = input("Podaj folder docelowy dla plików JSON (domyślnie 'teams_chats'): ") or "teams_chats"
+    
+    num_conversations = extract_teams_chats_from_pst(pst_file_path, output_folder)
+    print(f"Wyekstrahowano {num_conversations} konwersacji z Teams do folderu {output_folder}")
