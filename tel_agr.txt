@@ -74,6 +74,42 @@ PRIMARY INDEX (id_user, start_dte);
 
 
 -- Tworzenie tabeli statystyk historycznych S z tabeli T
+
+
+CREATE TABLE S AS (
+    WITH RankedData AS (
+        SELECT 
+            tel,
+            id_user,
+            date AS start_dte,
+            LEAD(date) OVER (PARTITION BY tel ORDER BY date) AS next_start_dte,
+            LEAD(id_user) OVER (PARTITION BY tel ORDER BY date) AS next_id_user,
+            ROW_NUMBER() OVER (PARTITION BY tel, id_user ORDER BY date) AS rn
+        FROM T
+    ),
+    FilteredData AS (
+        SELECT 
+            tel,
+            id_user,
+            start_dte,
+            CASE 
+                WHEN next_id_user IS NULL OR next_id_user <> id_user THEN next_start_dte
+                ELSE NULL
+            END AS temp_end_dte
+        FROM RankedData
+        WHERE rn = 1 OR next_id_user <> id_user
+    )
+    SELECT 
+        tel,
+        id_user,
+        start_dte,
+        CASE 
+            WHEN temp_end_dte IS NULL THEN NULL
+            ELSE temp_end_dte - INTERVAL '1' DAY
+        END AS end_dte
+    FROM FilteredData
+) WITH DATA
+PRIMARY INDEX (tel, start_dte);
 CREATE TABLE S AS (
     WITH RankedData AS (
         SELECT 
