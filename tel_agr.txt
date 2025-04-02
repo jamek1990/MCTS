@@ -1,0 +1,73 @@
+-- Zakładamy, że tabela T już istnieje i ma kolumny: tel, id_user, date
+-- Zakładamy, że kolumna 'date' jest typu DATE lub TIMESTAMP
+-- Zakładamy, że kolumna 'tel' może być NULL, dlatego używamy IS DISTINCT FROM
+
+-- Opcja 1: SELECT do wyświetlenia wyników (bez tworzenia tabeli S)
+WITH LaggedData AS (
+    -- Krok 1: Dodaj informację o poprzednim numerze telefonu dla każdego użytkownika
+    SELECT
+        tel,
+        id_user,
+        date,
+        LAG(tel, 1) OVER (PARTITION BY id_user ORDER BY date) AS previous_tel
+    FROM T
+),
+ChangePoints AS (
+    -- Krok 2: Wybierz tylko te wiersze, które oznaczają początek nowego okresu
+    -- (pierwszy wiersz dla użytkownika LUB zmiana numeru telefonu)
+    SELECT
+        tel,
+        id_user,
+        date -- Ta data staje się kandydatem na start_dte
+    FROM LaggedData
+    WHERE previous_tel IS NULL OR tel IS DISTINCT FROM previous_tel
+        -- 'IS DISTINCT FROM' poprawnie obsługuje porównania z NULL
+        -- Jeśli masz pewność, że 'tel' nigdy nie jest NULL, możesz użyć:
+        -- WHERE previous_tel IS NULL OR tel <> previous_tel
+)
+-- Krok 3: Zastosuj logikę LEAD na przefiltrowanych danych, aby znaleźć datę końcową
+SELECT
+    cp.tel,
+    cp.id_user,
+    cp.date AS start_dte,
+    -- Znajdź datę startową *następnego* punktu zmiany dla tego użytkownika
+    LEAD(cp.date, 1) OVER (PARTITION BY cp.id_user ORDER BY cp.date) - INTERVAL '1' DAY AS end_dte
+FROM ChangePoints cp;
+
+
+-- Opcja 2: CREATE TABLE AS SELECT do stworzenia nowej tabeli S
+CREATE MULTISET TABLE S AS (
+    WITH LaggedData AS (
+        -- Krok 1: Dodaj informację o poprzednim numerze telefonu
+        SELECT
+            tel,
+            id_user,
+            date,
+            LAG(tel, 1) OVER (PARTITION BY id_user ORDER BY date) AS previous_tel
+        FROM T
+    ),
+    ChangePoints AS (
+        -- Krok 2: Wybierz tylko punkty zmiany
+        SELECT
+            tel,
+            id_user,
+            date
+        FROM LaggedData
+        WHERE previous_tel IS NULL OR tel IS DISTINCT FROM previous_tel
+    )
+    -- Krok 3: Zastosuj LEAD do znalezienia daty końcowej
+    SELECT
+        cp.tel,
+        cp.id_user,
+        cp.date AS start_dte,
+        LEAD(cp.date, 1) OVER (PARTITION BY cp.id_user ORDER BY cp.date) - INTERVAL '1' DAY AS end_dte
+    FROM ChangePoints cp
+) WITH DATA;
+
+-- Możesz dodać PRIMARY INDEX jeśli jest potrzebny, np.:
+/*
+CREATE MULTISET TABLE S AS (
+    -- ... (całe zapytanie z CTE jak wyżej) ...
+) WITH DATA
+PRIMARY INDEX (id_user, start_dte);
+*/
