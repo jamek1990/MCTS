@@ -192,3 +192,264 @@ if __name__ == "__main__":
     
     num_conversations = extract_teams_chats_from_pst(pst_file_path, output_folder)
     print(f"Wyekstrahowano {num_conversations} konwersacji z Teams do folderu {output_folder}")
+
+import os
+import json
+import datetime
+import olefile
+import re
+import email
+from email.utils import parsedate_to_datetime
+import extract_msg
+
+def extract_teams_chats_from_pst(pst_file_path, output_folder):
+    """
+    Ekstrahuje chaty Teams z pliku PST Outlook i zapisuje je jako pliki JSON
+    używając bibliotek olefile i extract_msg.
+    
+    Args:
+        pst_file_path (str): Ścieżka do pliku PST
+        output_folder (str): Folder, w którym zostaną zapisane pliki JSON
+    """
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+    
+    print(f"Przetwarzanie pliku PST: {pst_file_path}")
+    
+    # Najpierw użyjemy readpst (wymaga zainstalowania oddzielnie) do wyodrębnienia wiadomości
+    temp_folder = os.path.join(output_folder, "temp_msg_files")
+    if not os.path.exists(temp_folder):
+        os.makedirs(temp_folder)
+    
+    # Wywołaj readpst jako proces zewnętrzny
+    import subprocess
+    try:
+        print("Używam readpst do wyodrębnienia wiadomości z pliku PST...")
+        cmd = ["readpst", "-o", temp_folder, "-e", pst_file_path]
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = process.communicate()
+        
+        if process.returncode != 0:
+            print(f"Błąd podczas uruchamiania readpst: {stderr.decode('utf-8', errors='replace')}")
+            # Jeśli readpst nie jest dostępny, spróbujmy inną metodę
+            return extract_teams_chats_using_olefile(pst_file_path, output_folder)
+        
+        print("Wyodrębniono wiadomości. Rozpoczynam przetwarzanie...")
+    except Exception as e:
+        print(f"Błąd podczas używania readpst: {str(e)}")
+        print("Próbuję alternatywnej metody...")
+        return extract_teams_chats_using_olefile(pst_file_path, output_folder)
+    
+    # Przetwarzanie wyodrębnionych wiadomości
+    chats_by_conversation = {}
+    
+    # Rekurencyjne przeszukiwanie folderów i podfolderów
+    def process_folder(folder_path):
+        for item in os.listdir(folder_path):
+            item_path = os.path.join(folder_path, item)
+            
+            if os.path.isdir(item_path):
+                # Sprawdź, czy to jeden z folderów Teams
+                if item in ["SkypeSpacesData", "TeamsMessagesData"]:
+                    print(f"Znaleziono folder Teams: {item_path}")
+                process_folder(item_path)
+            
+            elif item.endswith('.msg'):
+                try:
+                    # Przetwórz plik MSG
+                    msg = extract_msg.Message(item_path)
+                    
+                    # Sprawdź, czy to wiadomość Teams
+                    if (msg.subject and "Teams" in msg.subject) or \
+                       (msg.body and "Teams" in msg.body) or \
+                       ("SkypeSpacesData" in item_path or "TeamsMessagesData" in item_path):
+                        
+                        # Uzyskaj ID konwersacji
+                        conversation_id = msg.subject if msg.subject else "unknown_conversation"
+                        
+                        # Uzyskaj datę i czas
+                        if msg.date:
+                            timestamp = msg.date
+                        else:
+                            timestamp = datetime.datetime.now()
+                        
+                        # Uzyskaj nadawcę
+                        sender = msg.sender if msg.sender else "Unknown"
+                        
+                        # Uzyskaj treść
+                        content = msg.body if msg.body else ""
+                        
+                        # Stwórz strukturę wiadomości
+                        msg_data = {
+                            "id": os.path.basename(item_path),
+                            "conversation_id": conversation_id,
+                            "sender": sender,
+                            "timestamp": timestamp.isoformat(),
+                            "content": content,
+                            "folder_path": os.path.relpath(os.path.dirname(item_path), temp_folder)
+                        }
+                        
+                        # Dodaj do odpowiedniej konwersacji
+                        if conversation_id not in chats_by_conversation:
+                            chats_by_conversation[conversation_id] = []
+                        chats_by_conversation[conversation_id].append(msg_data)
+                        
+                except Exception as e:
+                    print(f"Błąd podczas przetwarzania pliku {item_path}: {str(e)}")
+    
+    # Rozpocznij przetwarzanie
+    process_folder(temp_folder)
+    
+    # Zapisz konwersacje do plików JSON
+    save_conversations(chats_by_conversation, output_folder)
+    
+    # Opcjonalnie - usuń tymczasowe pliki
+    import shutil
+    try:
+        shutil.rmtree(temp_folder)
+    except Exception as e:
+        print(f"Ostrzeżenie: Nie udało się usunąć folderu tymczasowego: {str(e)}")
+    
+    return len(chats_by_conversation)
+
+def extract_teams_chats_using_olefile(pst_file_path, output_folder):
+    """
+    Alternatywna metoda ekstrahowania chatów Teams z pliku PST
+    używając biblioteki olefile.
+    """
+    print("Używam olefile do przetwarzania pliku PST...")
+    
+    if not olefile.isOleFile(pst_file_path):
+        print(f"Błąd: {pst_file_path} nie jest prawidłowym plikiem OLE/PST.")
+        return 0
+    
+    try:
+        # Otwórz plik PST jako plik OLE
+        ole = olefile.OleFile(pst_file_path)
+        
+        # Znajdź foldery związane z Teams
+        chats_by_conversation = {}
+        
+        # Przejdź przez strukturę pliku OLE
+        for stream in ole.listdir():
+            stream_path = "/".join(stream)
+            
+            # Szukaj strumieni związanych z Teams
+            if "SkypeSpacesData" in stream_path or "TeamsMessagesData" in stream_path:
+                try:
+                    # Odczytaj zawartość strumienia
+                    content = ole.openstream(stream).read()
+                    
+                    # Spróbuj go przetworzyć jako wiadomość
+                    try:
+                        # Przeanalizuj zawartość jako wiadomość e-mail
+                        email_msg = email.message_from_bytes(content)
+                        
+                        # Pobierz ID konwersacji
+                        conversation_id = email_msg.get("Subject", "unknown_conversation")
+                        
+                        # Pobierz datę i czas
+                        date_str = email_msg.get("Date")
+                        if date_str:
+                            try:
+                                timestamp = parsedate_to_datetime(date_str)
+                            except:
+                                timestamp = datetime.datetime.now()
+                        else:
+                            timestamp = datetime.datetime.now()
+                        
+                        # Pobierz nadawcę
+                        sender = email_msg.get("From", "Unknown")
+                        
+                        # Pobierz treść
+                        if email_msg.is_multipart():
+                            content_text = ""
+                            for part in email_msg.walk():
+                                if part.get_content_type() == "text/plain":
+                                    content_text += part.get_payload(decode=True).decode('utf-8', errors='replace')
+                        else:
+                            content_text = email_msg.get_payload(decode=True).decode('utf-8', errors='replace')
+                        
+                        # Stwórz strukturę wiadomości
+                        msg_data = {
+                            "id": stream_path.replace("/", "_"),
+                            "conversation_id": conversation_id,
+                            "sender": sender,
+                            "timestamp": timestamp.isoformat(),
+                            "content": content_text,
+                            "folder_path": stream_path
+                        }
+                        
+                        # Dodaj do odpowiedniej konwersacji
+                        if conversation_id not in chats_by_conversation:
+                            chats_by_conversation[conversation_id] = []
+                        chats_by_conversation[conversation_id].append(msg_data)
+                        
+                    except Exception as e:
+                        # Jeśli nie można przetworzyć jako wiadomość, spróbuj bezpośrednio wyodrębnić tekst
+                        try:
+                            content_str = content.decode('utf-8', errors='replace')
+                            conversation_id = f"extracted_from_{stream_path.replace('/', '_')}"
+                            
+                            # Stwórz strukturę wiadomości
+                            msg_data = {
+                                "id": stream_path.replace("/", "_"),
+                                "conversation_id": conversation_id,
+                                "sender": "Unknown (Binary Extraction)",
+                                "timestamp": datetime.datetime.now().isoformat(),
+                                "content": content_str,
+                                "folder_path": stream_path
+                            }
+                            
+                            # Dodaj do odpowiedniej konwersacji
+                            if conversation_id not in chats_by_conversation:
+                                chats_by_conversation[conversation_id] = []
+                            chats_by_conversation[conversation_id].append(msg_data)
+                            
+                        except Exception as inner_e:
+                            print(f"Nie udało się przetworzyć strumienia {stream_path}: {str(inner_e)}")
+                
+                except Exception as e:
+                    print(f"Błąd podczas przetwarzania strumienia {stream_path}: {str(e)}")
+        
+        # Zapisz konwersacje do plików JSON
+        save_conversations(chats_by_conversation, output_folder)
+        
+        # Zamknij plik OLE
+        ole.close()
+        
+        return len(chats_by_conversation)
+        
+    except Exception as e:
+        print(f"Błąd podczas przetwarzania pliku {pst_file_path}: {str(e)}")
+        return 0
+
+def save_conversations(chats_by_conversation, output_folder):
+    """
+    Zapisuje konwersacje do plików JSON.
+    """
+    print(f"Zapisywanie {len(chats_by_conversation)} konwersacji do plików JSON...")
+    
+    for conv_id, messages in chats_by_conversation.items():
+        # Usuwanie zabronionych znaków z nazwy pliku
+        safe_conv_id = "".join(c if c.isalnum() or c in ['-', '_', ' '] else '_' for c in conv_id)
+        if len(safe_conv_id) > 100:  # Ograniczenie długości nazwy pliku
+            safe_conv_id = safe_conv_id[:100]
+        
+        # Sortowanie wiadomości według daty
+        messages.sort(key=lambda x: x["timestamp"])
+        
+        # Zapisywanie do pliku JSON
+        output_file = os.path.join(output_folder, f"{safe_conv_id}.json")
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(messages, f, ensure_ascii=False, indent=4)
+        
+        print(f"Zapisano konwersację '{safe_conv_id}' z {len(messages)} wiadomościami")
+
+# Przykład użycia:
+if __name__ == "__main__":
+    pst_file_path = input("Podaj ścieżkę do pliku PST: ")
+    output_folder = input("Podaj folder docelowy dla plików JSON (domyślnie 'teams_chats'): ") or "teams_chats"
+    
+    num_conversations = extract_teams_chats_from_pst(pst_file_path, output_folder)
+    print(f"Wyekstrahowano {num_conversations} konwersacji z Teams do folderu {output_folder}")
