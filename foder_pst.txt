@@ -1,0 +1,38 @@
+mam plik w różnych folderach z rozszerzeniem ppt napisz program w python który przejdzie przez wszyskie fodlery i podfodlery i wypisze ściezki do każdego pliku
+
+import os
+
+def find_ppt_files(root_dir):
+    """
+    Funkcja przechodzi przez wszystkie foldery i podfoldery zaczynając od root_dir
+    i wypisuje ścieżki do wszystkich plików z rozszerzeniem .ppt
+    
+    Args:
+        root_dir (str): Ścieżka do katalogu początkowego
+    """
+    # Sprawdzenie czy podany katalog istnieje
+    if not os.path.exists(root_dir):
+        print(f"Katalog {root_dir} nie istnieje.")
+        return
+    
+    count = 0
+    
+    # Przejście przez wszystkie foldery i podfoldery
+    for dirpath, dirnames, filenames in os.walk(root_dir):
+        # Sprawdzenie każdego pliku w bieżącym folderze
+        for filename in filenames:
+            # Sprawdzenie czy plik ma rozszerzenie .ppt lub .pptx
+            if filename.lower().endswith('.ppt') or filename.lower().endswith('.pptx'):
+                # Wypisanie pełnej ścieżki do pliku
+                full_path = os.path.join(dirpath, filename)
+                print(full_path)
+                count += 1
+    
+    print(f"\nZnaleziono łącznie {count} plików PowerPoint.")
+
+if __name__ == "__main__":
+    # Możesz zmienić tę ścieżkę na swoją ścieżkę początkową
+    start_directory = input("Podaj ścieżkę początkową do przeszukania: ")
+    
+    # Wywołanie funkcji do znalezienia plików PPT
+    find_ppt_files(start_directory)
