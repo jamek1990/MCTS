@@ -1,3 +1,133 @@
+
+def generate_phone_history_optimized(df_a, df_e):
+    """
+    Generuje historię przypisania telefonów na podstawie tabeli A i E.
+    Zoptymalizowana wersja funkcji z kompresją rekordów ciągłych.
+    Dla pierwszego przypisania telefonu (minimum LOAD_DTE) używa daty zatrudnienia pracownika 
+    jako potencjalnej daty początkowej przypisania.
+    """
+    # Wartość dla odległej przyszłości
+    FAR_FUTURE = pd.Timestamp('2099-01-01')
+    
+    # Wstępne przetwarzanie danych pracowników dla szybszego dostępu
+    emp_data_dict = {}
+    for _, row in df_e.iterrows():
+        emp_data_dict[row['ID_EMP']] = {
+            'MIN_DTE': row['MIN_DTE'], 
+            'MAX_DTE': row['MAX_DTE']
+        }
+    
+    # Sortowanie danych w tabeli A po TEL i LOAD_DTE
+    df_a_sorted = df_a.sort_values(['TEL', 'LOAD_DTE'])
+    
+    # Znajdowanie minimalnej daty LOAD_DTE dla każdego telefonu
+    min_load_dates = df_a_sorted.groupby('TEL')['LOAD_DTE'].min().to_dict()
+    
+    # Lista na wyniki (przed kompresją)
+    phone_history = []
+    
+    # Przetwarzanie dla każdego unikalnego telefonu
+    for tel in df_a_sorted['TEL'].unique():
+        tel_data = df_a_sorted[df_a_sorted['TEL'] == tel]
+        tel_records = tel_data.to_dict('records')
+        max_load_date = tel_data['LOAD_DTE'].max()
+        min_load_date = min_load_dates[tel]
+        
+        for i, current_row in enumerate(tel_records):
+            current_emp = current_row['ID_EMP']
+            current_date = current_row['LOAD_DTE']
+            
+            # Sprawdzenie czy pracownik był zatrudniony w tym czasie
+            if current_emp not in emp_data_dict:
+                continue  # Pomijamy jeśli nie ma informacji o zatrudnieniu
+                
+            emp_info = emp_data_dict[current_emp]
+            emp_start = emp_info['MIN_DTE']
+            emp_end = emp_info['MAX_DTE']
+            
+            # Jeśli data przypisania jest poza okresem zatrudnienia, pomijamy
+            if current_date < emp_start or current_date > emp_end:
+                continue
+                
+            # Ustalamy początek okresu przypisania
+            if current_date == min_load_date:
+                # Dla pierwszego przypisania tego telefonu - używamy daty zatrudnienia pracownika
+                # jako potencjalnego początku przypisania
+                start_date = max(emp_start, min_load_date)
+            else:
+                # Dla kolejnych przypisań używamy daty z LOAD_DTE
+                start_date = current_date
+            
+            # Ustalamy koniec okresu przypisania
+            if current_date == max_load_date:
+                # Ostatni znany wpis dla tego telefonu
+                end_date = min(FAR_FUTURE, emp_end)
+            else:
+                # Znajdujemy następną datę
+                next_date = None
+                for j in range(i + 1, len(tel_records)):
+                    if tel_records[j]['LOAD_DTE'] > current_date:
+                        next_date = tel_records[j]['LOAD_DTE']
+                        break
+                
+                end_date = min(next_date - pd.Timedelta(days=1), emp_end) if next_date else emp_end
+            
+            # Dodajemy wpis tylko jeśli daty są poprawne
+            if start_date <= end_date:
+                phone_history.append({
+                    'TEL': tel,
+                    'ID_EMP': current_emp,
+                    'START_DTE': start_date,
+                    'END_DTE': end_date
+                })
+    
+    # Tworzenie DataFrame z historią
+    if not phone_history:
+        return pd.DataFrame(columns=['TEL', 'ID_EMP', 'START_DTE', 'END_DTE'])
+        
+    df_history = pd.DataFrame(phone_history)
+    
+    # Sortowanie wynikowej tabeli
+    df_history = df_history.sort_values(['TEL', 'ID_EMP', 'START_DTE'])
+    
+    # Kompresja rekordów dla tego samego telefonu i pracownika
+    compressed_history = []
+    current_record = None
+    
+    for _, row in df_history.iterrows():
+        if current_record is None:
+            # Pierwszy rekord
+            current_record = {
+                'TEL': row['TEL'],
+                'ID_EMP': row['ID_EMP'],
+                'START_DTE': row['START_DTE'],
+                'END_DTE': row['END_DTE']
+            }
+        elif (row['TEL'] == current_record['TEL'] and 
+              row['ID_EMP'] == current_record['ID_EMP'] and 
+              (row['START_DTE'] - pd.Timedelta(days=1) <= current_record['END_DTE'])):
+            # Ten sam telefon i pracownik, przylegające okresy
+            # Aktualizujemy tylko datę końcową
+            current_record['END_DTE'] = max(current_record['END_DTE'], row['END_DTE'])
+        else:
+            # Nowy rekord - zapisujemy poprzedni i zaczynamy nowy
+            compressed_history.append(current_record)
+            current_record = {
+                'TEL': row['TEL'],
+                'ID_EMP': row['ID_EMP'],
+                'START_DTE': row['START_DTE'],
+                'END_DTE': row['END_DTE']
+            }
+    
+    # Dodanie ostatniego rekordu
+    if current_record is not None:
+        compressed_history.append(current_record)
+    
+    # Tworzenie nowego DataFrame z kompresjowanymi rekordami
+    df_compressed = pd.DataFrame(compressed_history)
+    
+    # Sortowanie wynikowej tabeli
+    return df_compressed.sort_values(['TEL', 'START_DTE']) if not df_compressed.empty else df_compressed
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
