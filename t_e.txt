@@ -1,0 +1,258 @@
+import pandas as pd
+import numpy as np
+from datetime import datetime, timedelta
+
+# Tworzenie przykładowych danych do testów
+def create_sample_data():
+    # Tabela A - dane o przypisanych telefonach
+    data_a = {
+        'TEL': ['601-123-456', '602-234-567', '601-123-456', '603-345-678', '601-123-456', '602-234-567', '601-123-456'],
+        'ID_EMP': [1001, 1002, 1003, 1004, 1003, 1005, 1002],
+        'LOAD_DTE': [
+            pd.Timestamp('2023-01-10'),  # Tel przypisany do pracownika 1001
+            pd.Timestamp('2023-01-15'),  # Tel przypisany do pracownika 1002
+            pd.Timestamp('2023-02-05'),  # Tel przeszedł do pracownika 1003
+            pd.Timestamp('2023-02-10'),  # Inny telefon przypisany do pracownika 1004
+            pd.Timestamp('2023-03-15'),  # Ten sam pracownik 1003 dalej ma telefon (ale mamy nowy wpis)
+            pd.Timestamp('2023-03-20'),  # Tel przypisany do pracownika 1005
+            pd.Timestamp('2023-04-05'),  # Tel wrócił do pracownika 1002
+        ]
+    }
+    
+    # Tabela E - dane o zatrudnieniu pracowników
+    data_e = {
+        'ID_EMP': [1001, 1002, 1003, 1004, 1005],
+        'MIN_DTE': [
+            pd.Timestamp('2022-12-15'),  # Pracownik 1001 zatrudniony wcześniej niż pierwszy LOAD_DTE
+            pd.Timestamp('2022-06-01'),
+            pd.Timestamp('2023-01-20'),  # Pracownik 1003 zatrudniony później niż pierwszy LOAD_DTE
+            pd.Timestamp('2022-05-01'),
+            pd.Timestamp('2023-03-01')
+        ],
+        'MAX_DTE': [
+            pd.Timestamp('2023-02-28'),
+            pd.Timestamp('2023-12-31'),
+            pd.Timestamp('2024-01-01'),
+            pd.Timestamp('2023-03-31'),
+            pd.Timestamp('2023-12-31')
+        ]
+    }
+    
+    df_a = pd.DataFrame(data_a)
+    df_e = pd.DataFrame(data_e)
+    
+    return df_a, df_e
+    
+    # Tabela E - dane o zatrudnieniu pracowników
+    data_e = {
+        'ID_EMP': [1001, 1002, 1003, 1004, 1005],
+        'MIN_DTE': [
+            pd.Timestamp('2022-01-01'),
+            pd.Timestamp('2022-06-01'),
+            pd.Timestamp('2023-01-20'),
+            pd.Timestamp('2022-05-01'),
+            pd.Timestamp('2023-03-01')
+        ],
+        'MAX_DTE': [
+            pd.Timestamp('2023-02-28'),
+            pd.Timestamp('2023-12-31'),
+            pd.Timestamp('2024-01-01'),
+            pd.Timestamp('2023-03-31'),
+            pd.Timestamp('2023-12-31')
+        ]
+    }
+    
+    df_a = pd.DataFrame(data_a)
+    df_e = pd.DataFrame(data_e)
+    
+    return df_a, df_e
+
+def generate_phone_history(df_a, df_e):
+    """
+    Generuje historię przypisania telefonów na podstawie tabeli A i E.
+    Uwzględnia tylko faktycznie zarejestrowane przypisania telefonów.
+    Dla pierwszego przypisania telefonu używa daty zatrudnienia pracownika jako daty początkowej.
+    """
+    # Sortowanie danych w tabeli A po TEL i LOAD_DTE
+    df_a = df_a.sort_values(['TEL', 'LOAD_DTE'])
+    
+    # Lista na wyniki
+    phone_history = []
+    
+    # Przetwarzanie dla każdego unikalnego telefonu
+    for tel in df_a['TEL'].unique():
+        tel_data = df_a[df_a['TEL'] == tel].copy()
+        
+        # Słownik do śledzenia pierwszego wystąpienia telefonu dla każdego pracownika
+        first_appearance = {}
+        
+        for i in range(len(tel_data)):
+            current_row = tel_data.iloc[i]
+            current_emp = current_row['ID_EMP']
+            current_date = current_row['LOAD_DTE']
+            
+            # Sprawdzenie czy pracownik był zatrudniony w tym czasie
+            emp_data = df_e[df_e['ID_EMP'] == current_emp]
+            if emp_data.empty:
+                continue  # Pomijamy jeśli nie ma informacji o zatrudnieniu
+                
+            emp_start = emp_data.iloc[0]['MIN_DTE']
+            emp_end = emp_data.iloc[0]['MAX_DTE']
+            
+            # Jeśli data przypisania jest poza okresem zatrudnienia, pomijamy
+            if current_date < emp_start or current_date > emp_end:
+                continue
+                
+            # Ustalamy początek okresu przypisania
+            # Dla pierwszego przypisania tego telefonu w ogóle - używamy daty zatrudnienia
+            if i == 0:
+                # Pierwsze wystąpienie telefonu - używamy daty zatrudnienia pracownika
+                start_date = max(emp_start, current_date)
+                # Zapisujemy informację o pierwszym wystąpieniu dla tego pracownika
+                first_appearance[current_emp] = True
+            else:
+                # Dla kolejnych przypisań używamy daty z LOAD_DTE
+                start_date = current_date
+            
+            # Ustalamy koniec okresu przypisania:
+            # 1. Jeśli to ostatni wpis dla tego telefonu, końcem jest koniec zatrudnienia
+            # 2. Jeśli istnieje następny wpis, końcem jest dzień przed następnym przypisaniem
+            if i == len(tel_data) - 1:
+                # Ostatni znany wpis dla tego telefonu
+                end_date = emp_end
+            else:
+                # Kolejny wpis dla tego telefonu
+                next_date = tel_data.iloc[i + 1]['LOAD_DTE']
+                end_date = min(next_date - timedelta(days=1), emp_end)
+            
+            # Dodajemy wpis tylko jeśli daty są poprawne
+            if start_date <= end_date:
+                phone_history.append({
+                    'TEL': tel,
+                    'ID_EMP': current_emp,
+                    'START_DTE': start_date,
+                    'END_DTE': end_date
+                })
+    
+    # Tworzenie DataFrame z historią
+    if phone_history:
+        df_history = pd.DataFrame(phone_history)
+        # Sortowanie wynikowej tabeli
+        df_history = df_history.sort_values(['TEL', 'START_DTE'])
+        return df_history
+    else:
+        return pd.DataFrame(columns=['TEL', 'ID_EMP', 'START_DTE', 'END_DTE'])
+
+def verify_history_data(df_history, df_a, df_e):
+    """
+    Weryfikacja poprawności wygenerowanej historii.
+    """
+    if df_history.empty:
+        print("OSTRZEŻENIE: Wygenerowana historia jest pusta!")
+        return
+        
+    print("Weryfikacja poprawności danych:")
+    
+    # 1. Sprawdzenie czy każdy przypisany telefon ma poprawne daty
+    for index, row in df_history.iterrows():
+        emp_data = df_e[df_e['ID_EMP'] == row['ID_EMP']]
+        if emp_data.empty:
+            print(f"BŁĄD: Brak danych o zatrudnieniu pracownika {row['ID_EMP']}")
+            continue
+            
+        emp_start = emp_data.iloc[0]['MIN_DTE']
+        emp_end = emp_data.iloc[0]['MAX_DTE']
+        
+        # Sprawdzenie czy przypisanie jest w okresie zatrudnienia
+        if not (row['START_DTE'] >= emp_start and row['END_DTE'] <= emp_end):
+            print(f"BŁĄD: Przypisanie telefonu {row['TEL']} do pracownika {row['ID_EMP']} " +
+                  f"jest poza okresem zatrudnienia ({emp_start} - {emp_end})")
+    
+    # 2. Sprawdzenie czy nie ma nakładających się przypisań tego samego telefonu
+    for tel in df_history['TEL'].unique():
+        tel_data = df_history[df_history['TEL'] == tel].sort_values('START_DTE')
+        
+        for i in range(len(tel_data) - 1):
+            current_end = tel_data.iloc[i]['END_DTE']
+            next_start = tel_data.iloc[i + 1]['START_DTE']
+            
+            if current_end >= next_start:
+                print(f"BŁĄD: Nakładające się przypisania telefonu {tel} " +
+                      f"od {tel_data.iloc[i]['START_DTE']} do {current_end} " +
+                      f"i od {next_start} do {tel_data.iloc[i + 1]['END_DTE']}")
+    
+    # 3. Sprawdzenie czy wszystkie przypisania z tabeli A są uwzględnione
+    for index, row in df_a.iterrows():
+        # Sprawdź, czy istnieje wpis w historii odpowiadający temu przypisaniu
+        matching_history = df_history[
+            (df_history['TEL'] == row['TEL']) & 
+            (df_history['ID_EMP'] == row['ID_EMP']) & 
+            (df_history['START_DTE'] <= row['LOAD_DTE']) & 
+            (df_history['END_DTE'] >= row['LOAD_DTE'])
+        ]
+        
+        if matching_history.empty:
+            # Sprawdź czy pracownik był zatrudniony w tym czasie
+            emp_data = df_e[df_e['ID_EMP'] == row['ID_EMP']]
+            if not emp_data.empty:
+                emp_start = emp_data.iloc[0]['MIN_DTE']
+                emp_end = emp_data.iloc[0]['MAX_DTE']
+                
+                if emp_start <= row['LOAD_DTE'] <= emp_end:
+                    print(f"BŁĄD: Brak przypisania w historii: TEL={row['TEL']}, ID_EMP={row['ID_EMP']}, LOAD_DTE={row['LOAD_DTE']}")
+    
+    # 4. Sprawdzenie logicznej ciągłości historii przypisań dla każdego telefonu
+    for tel in df_history['TEL'].unique():
+        tel_data = df_history[df_history['TEL'] == tel].sort_values('START_DTE')
+        
+        # Sprawdzanie przerw między przypisaniami
+        for i in range(len(tel_data) - 1):
+            current_end = tel_data.iloc[i]['END_DTE']
+            next_start = tel_data.iloc[i + 1]['START_DTE']
+            
+            # Sprawdzenie czy jest przerwa między przypisaniami
+            if (next_start - current_end).days > 1:
+                print(f"INFORMACJA: Telefon {tel} nie był przypisany od {current_end + timedelta(days=1)} do {next_start - timedelta(days=1)}")
+    
+    print("Weryfikacja zakończona.")
+
+def main():
+    # Wczytanie danych (w rzeczywistym scenariuszu można wczytać z plików CSV lub bazy danych)
+    df_a, df_e = create_sample_data()
+    
+    print("Tabela A - przypisania telefonów:")
+    print(df_a.to_string())
+    print("\nTabela E - okresy zatrudnienia:")
+    print(df_e.to_string())
+    
+    # Generowanie historii przypisań telefonów
+    df_history = generate_phone_history(df_a, df_e)
+    
+    print("\nWygenerowana tabela stat_hist:")
+    if df_history.empty:
+        print("Nie znaleziono żadnych poprawnych przypisań telefonów!")
+    else:
+        print(df_history.to_string())
+    
+    # Weryfikacja poprawności danych
+    verify_history_data(df_history, df_a, df_e)
+    
+    # Podsumowanie
+    if not df_history.empty:
+        print("\nStatystyki tablicy stat_hist:")
+        print(f"- Liczba unikalnych telefonów: {df_history['TEL'].nunique()}")
+        print(f"- Liczba unikalnych pracowników: {df_history['ID_EMP'].nunique()}")
+        print(f"- Całkowita liczba przypisań: {len(df_history)}")
+        
+        # Analiza średniego czasu posiadania telefonu
+        df_history['DAYS'] = (df_history['END_DTE'] - df_history['START_DTE']).dt.days + 1
+        avg_days = df_history['DAYS'].mean()
+        print(f"- Średni czas posiadania telefonu: {avg_days:.1f} dni")
+    
+    # Zapisanie wynikowej tabeli do CSV (opcjonalnie)
+    # df_history.to_csv('stat_hist.csv', index=False)
+    
+    return df_history
+
+if __name__ == "__main__":
+    main()
