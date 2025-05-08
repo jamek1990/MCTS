@@ -1,0 +1,66 @@
+from datetime import datetime
+import pytz
+
+def convert_to_timestamp6(date_str):
+    """
+    Konwertuje datę w formacie '03-Mar-2025 02:58:20.947 PM (GMT)' 
+    na timestamp z dokładnością do mikrosekund (timestamp(6)).
+    
+    Args:
+        date_str (str): String z datą w formacie '03-Mar-2025 02:58:20.947 PM (GMT)'
+    
+    Returns:
+        float: Timestamp w sekundach z dokładnością do mikrosekund
+    """
+    # Usunięcie "(GMT)" z końca stringa
+    date_str = date_str.replace(" (GMT)", "")
+    
+    # Parsowanie daty
+    dt = datetime.strptime(date_str, "%d-%b-%Y %I:%M:%S.%f %p")
+    
+    # Ustawienie strefy czasowej na GMT
+    dt = pytz.timezone('GMT').localize(dt)
+    
+    # Konwersja na timestamp (w sekundach z dokładnością do mikrosekund)
+    timestamp = dt.timestamp()
+    
+    return timestamp
+
+# Przykład użycia
+date_str = "03-Mar-2025 02:58:20.947 PM (GMT)"
+ts = convert_to_timestamp6(date_str)
+
+print(f"Data: {date_str}")
+print(f"Timestamp(6): {ts}")
+print(f"Timestamp(6) jako int z mikrosekund: {int(ts * 1000000)}")
+
+# Możesz też zrobić konwersję odwrotną, aby sprawdzić poprawność
+dt_back = datetime.fromtimestamp(ts, tz=pytz.GMT)
+print(f"Data z powrotem: {dt_back.strftime('%d-%b-%Y %I:%M:%S.%f %p')} (GMT)")
+
+# Jeśli chcesz zamienić wiele dat w kolumnie DataFrame
+import pandas as pd
+
+def convert_dates_in_dataframe(df, date_column):
+    """
+    Konwertuje kolumnę dat w DataFrame na timestamp(6)
+    
+    Args:
+        df (pd.DataFrame): DataFrame zawierający daty
+        date_column (str): Nazwa kolumny zawierającej daty
+        
+    Returns:
+        pd.DataFrame: DataFrame z dodaną kolumną timestamp
+    """
+    # Kopiujemy DataFrame aby nie modyfikować oryginału
+    result_df = df.copy()
+    
+    # Tworzymy nową kolumnę z timestampami
+    result_df[f'{date_column}_timestamp'] = result_df[date_column].apply(convert_to_timestamp6)
+    
+    return result_df
+
+# Przykład użycia dla DataFrame
+# df = pd.DataFrame({'data': ["03-Mar-2025 02:58:20.947 PM (GMT)", "04-Mar-2025 10:15:30.123 AM (GMT)"]})
+# df_with_timestamps = convert_dates_in_dataframe(df, 'data')
+# print(df_with_timestamps)
