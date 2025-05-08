@@ -64,3 +64,27 @@ def convert_dates_in_dataframe(df, date_column):
 # df = pd.DataFrame({'data': ["03-Mar-2025 02:58:20.947 PM (GMT)", "04-Mar-2025 10:15:30.123 AM (GMT)"]})
 # df_with_timestamps = convert_dates_in_dataframe(df, 'data')
 # print(df_with_timestamps)
+
+import zipfile
+import pandas as pd
+import io
+
+# Ścieżka do pliku ZIP
+zip_path = 'x.zip'
+
+# Otwórz plik ZIP
+with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+    # Pobierz listę plików w archiwum ZIP
+    file_list = zip_ref.namelist()
+    
+    # Zakładając, że jest tylko jeden plik CSV w archiwum
+    # Jeśli jest więcej plików, możesz wybrać konkretny po nazwie
+    csv_file = [f for f in file_list if f.endswith('.csv')][0]
+    
+    # Odczytaj zawartość pliku CSV z archiwum
+    with zip_ref.open(csv_file) as file:
+        # Wczytaj dane do DataFrame
+        df = pd.read_csv(file)
+
+# Teraz df zawiera dane z pliku CSV z archiwum ZIP
+print(df.head())
