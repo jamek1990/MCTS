@@ -1,0 +1,82 @@
+import os
+import shutil
+import pandas as pd
+from pathlib import Path
+
+def process_wav_files(root_folder, df):
+    """
+    Przeszukuje wszystkie podkatalogi w podanym folderze, znajduje pliki .wav,
+    sprawdza czy nazwa pliku zawiera id z ramki danych i jeśli tak,
+    dodaje ścieżkę do ramki danych i kopiuje plik do folderu 'prok'.
+    
+    Args:
+        root_folder (str): Ścieżka do folderu głównego (x)
+        df (pandas.DataFrame): Ramka danych zawierająca kolumnę 'id'
+    
+    Returns:
+        pandas.DataFrame: Zaktualizowana ramka danych z dodaną kolumną 'path'
+    """
+    # Upewnij się, że kolumna 'path' istnieje w DataFrame
+    if 'path' not in df.columns:
+        df['path'] = None
+    
+    # Utwórz folder 'prok', jeśli nie istnieje
+    prok_folder = os.path.join(root_folder, 'prok')
+    os.makedirs(prok_folder, exist_ok=True)
+    
+    # Konwertuj wartości id na stringi dla bezpieczeństwa
+    ids = [str(id_val) for id_val in df['id'].tolist()]
+    
+    # Przejdź przez wszystkie podkatalogi
+    for dirpath, dirnames, filenames in os.walk(root_folder):
+        # Pomijamy folder 'prok' podczas przeszukiwania
+        if 'prok' in dirnames:
+            dirnames.remove('prok')
+        
+        # Sprawdź wszystkie pliki w aktualnym katalogu
+        for filename in filenames:
+            if filename.lower().endswith('.wav'):
+                # Sprawdź, czy nazwa pliku zawiera któreś z id
+                for idx, id_val in enumerate(ids):
+                    if id_val in filename:
+                        # Pełna ścieżka do pliku
+                        full_path = os.path.join(dirpath, filename)
+                        
+                        # Dodaj ścieżkę do DataFrame w odpowiednim wierszu
+                        df.loc[df['id'] == df['id'].iloc[idx], 'path'] = full_path
+                        
+                        # Kopiuj plik do folderu 'prok'
+                        dest_path = os.path.join(prok_folder, filename)
+                        shutil.copy2(full_path, dest_path)
+                        print(f"Skopiowano: {filename} do folderu 'prok'")
+                        break  # Znaleziono pasujące id, przechodzimy do następnego pliku
+    
+    return df
+
+def main():
+    # Zdefiniuj ścieżkę do folderu głównego (folder x)
+    root_folder = 'x'  # Zmień na właściwą ścieżkę
+    
+    # Wczytaj dane z pliku CSV lub innego źródła
+    # Przykład: df = pd.read_csv('dane.csv')
+    # Tutaj używam przykładowych danych - dostosuj do swoich potrzeb
+    df = pd.DataFrame({
+        'id': ['001', '002', '003', '004', '005']
+        # Inne kolumny...
+    })
+    
+    # Przetwórz pliki WAV
+    df = process_wav_files(root_folder, df)
+    
+    # Zapisz zaktualizowany DataFrame do pliku CSV lub innego formatu
+    # df.to_csv('zaktualizowane_dane.csv', index=False)
+    
+    print("Gotowe! Zaktualizowano DataFrame i skopiowano pliki.")
+    print(f"Liczba znalezionych plików: {df['path'].notna().sum()}")
+    
+    # Wyświetl zaktualizowaną ramkę danych
+    print("\nZaktualizowana ramka danych:")
+    print(df)
+
+if __name__ == "__main__":
+    main()
