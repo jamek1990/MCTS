@@ -1,6 +1,7 @@
 import os
 import shutil
 import argparse
+import glob
 
 def kopiuj_pliki_docx(katalog_zrodlowy, katalog_docelowy):
     """
@@ -22,6 +23,7 @@ def kopiuj_pliki_docx(katalog_zrodlowy, katalog_docelowy):
     
     liczba_skopiowanych_plikow = 0
     liczba_znalezionych_katalogow = 0
+    bledy_kopiowania = []
     
     # Przejdź przez wszystkie podkatalogi
     for root, dirs, files in os.walk(katalog_zrodlowy):
@@ -42,14 +44,22 @@ def kopiuj_pliki_docx(katalog_zrodlowy, katalog_docelowy):
                         os.makedirs(folder_docelowy)
                         print(f"Utworzono katalog: {folder_docelowy}")
                     
-                    # Kopiuj wszystkie pliki .docx z bieżącego katalogu
-                    for file in files:
-                        if file.lower().endswith(".docx"):
-                            src_file = os.path.join(root, file)
-                            dst_file = os.path.join(folder_docelowy, file)
-                            shutil.copy2(src_file, dst_file)
-                            print(f"Skopiowano: {src_file} -> {dst_file}")
+                    # Użyj wzorca glob do znalezienia wszystkich plików .docx
+                    wzorzec = os.path.join(root, "*.docx")
+                    pliki_docx = glob.glob(wzorzec, recursive=False)
+                    
+                    # Kopiuj wszystkie znalezione pliki .docx
+                    for sciezka_pliku in pliki_docx:
+                        try:
+                            nazwa_pliku = os.path.basename(sciezka_pliku)
+                            dst_file = os.path.join(folder_docelowy, nazwa_pliku)
+                            shutil.copy2(sciezka_pliku, dst_file)
+                            print(f"Skopiowano: {sciezka_pliku} -> {dst_file}")
                             liczba_skopiowanych_plikow += 1
+                        except Exception as e:
+                            blad = f"Błąd kopiowania {sciezka_pliku}: {str(e)}"
+                            bledy_kopiowania.append(blad)
+                            print(blad)
             except ValueError:
                 # Jeśli nie znaleziono "ZEWNĘTRZNY OPIS KLIENTA" w ścieżce, kontynuuj
                 continue
@@ -57,6 +67,11 @@ def kopiuj_pliki_docx(katalog_zrodlowy, katalog_docelowy):
     print(f"\nPodsumowanie:")
     print(f"Znaleziono {liczba_znalezionych_katalogow} pasujących katalogów")
     print(f"Skopiowano {liczba_skopiowanych_plikow} plików .docx")
+    
+    if bledy_kopiowania:
+        print("\nWystąpiły błędy podczas kopiowania następujących plików:")
+        for blad in bledy_kopiowania:
+            print(f"- {blad}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Program kopiujący pliki .docx z określonych katalogów")
