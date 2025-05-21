@@ -1,0 +1,68 @@
+import os
+import shutil
+import argparse
+
+def kopiuj_pliki_docx(katalog_zrodlowy, katalog_docelowy):
+    """
+    Funkcja przeszukuje katalog źródłowy, znajduje pliki .docx w strukturze 
+    x/ZEWNĘTRZNY OPIS KLIENTA/03_Notatka ze spotkań z KLiente/ 
+    i kopiuje je do katalogu docelowego, tworząc podkatalogi x.
+    
+    Args:
+        katalog_zrodlowy: Ścieżka do katalogu, który ma być przeszukany
+        katalog_docelowy: Ścieżka do katalogu, do którego mają być skopiowane pliki
+    """
+    print(f"Przeszukiwanie katalogu: {katalog_zrodlowy}")
+    print(f"Kopiowanie plików do: {katalog_docelowy}")
+    
+    # Sprawdzenie czy katalog docelowy istnieje, jeśli nie - utwórz go
+    if not os.path.exists(katalog_docelowy):
+        os.makedirs(katalog_docelowy)
+        print(f"Utworzono katalog docelowy: {katalog_docelowy}")
+    
+    liczba_skopiowanych_plikow = 0
+    liczba_znalezionych_katalogow = 0
+    
+    # Przejdź przez wszystkie podkatalogi
+    for root, dirs, files in os.walk(katalog_zrodlowy):
+        # Sprawdź czy ścieżka pasuje do wzorca x/ZEWNĘTRZNY OPIS KLIENTA/03_Notatka ze spotkań z KLiente/
+        if "ZEWNĘTRZNY OPIS KLIENTA" in root and "03_Notatka ze spotkań z KLiente" in root:
+            # Wydziel nazwę folderu "x" z pełnej ścieżki
+            parts = root.split(os.sep)
+            try:
+                # Znajdź indeks "ZEWNĘTRZNY OPIS KLIENTA" w ścieżce
+                index = parts.index("ZEWNĘTRZNY OPIS KLIENTA")
+                if index > 0:
+                    folder_x = parts[index - 1]
+                    liczba_znalezionych_katalogow += 1
+                    
+                    # Utwórz folder x w katalogu docelowym, jeśli nie istnieje
+                    folder_docelowy = os.path.join(katalog_docelowy, folder_x)
+                    if not os.path.exists(folder_docelowy):
+                        os.makedirs(folder_docelowy)
+                        print(f"Utworzono katalog: {folder_docelowy}")
+                    
+                    # Kopiuj wszystkie pliki .docx z bieżącego katalogu
+                    for file in files:
+                        if file.lower().endswith(".docx"):
+                            src_file = os.path.join(root, file)
+                            dst_file = os.path.join(folder_docelowy, file)
+                            shutil.copy2(src_file, dst_file)
+                            print(f"Skopiowano: {src_file} -> {dst_file}")
+                            liczba_skopiowanych_plikow += 1
+            except ValueError:
+                # Jeśli nie znaleziono "ZEWNĘTRZNY OPIS KLIENTA" w ścieżce, kontynuuj
+                continue
+    
+    print(f"\nPodsumowanie:")
+    print(f"Znaleziono {liczba_znalezionych_katalogow} pasujących katalogów")
+    print(f"Skopiowano {liczba_skopiowanych_plikow} plików .docx")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Program kopiujący pliki .docx z określonych katalogów")
+    parser.add_argument("katalog_zrodlowy", help="Ścieżka do katalogu źródłowego")
+    parser.add_argument("katalog_docelowy", help="Ścieżka do katalogu docelowego")
+    
+    args = parser.parse_args()
+    
+    kopiuj_pliki_docx(args.katalog_zrodlowy, args.katalog_docelowy)
