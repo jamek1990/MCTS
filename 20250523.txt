@@ -1,0 +1,77 @@
+import os
+import argparse
+
+def zapisz_sciezki_do_pliku(katalog_startowy, plik_wyjsciowy):
+    """
+    Przechodzi rekursywnie przez katalog_startowy, zbiera ścieżki do wszystkich
+    plików i podkatalogów, a następnie zapisuje je do pliku_wyjsciowego.
+
+    Args:
+        katalog_startowy (str): Ścieżka do katalogu, od którego rozpocznie się przeszukiwanie.
+        plik_wyjsciowy (str): Ścieżka do pliku .txt, w którym zostaną zapisane znalezione ścieżki.
+    """
+    # Sprawdzenie, czy katalog startowy istnieje i jest katalogiem
+    # os.path.abspath jest używany, aby poprawnie obsłużyć "." jako katalog_startowy
+    abs_katalog_startowy = os.path.abspath(katalog_startowy)
+    if not os.path.exists(abs_katalog_startowy):
+        print(f"Błąd: Katalog startowy '{abs_katalog_startowy}' nie istnieje.")
+        return
+    if not os.path.isdir(abs_katalog_startowy):
+        print(f"Błąd: Ścieżka startowa '{abs_katalog_startowy}' nie jest katalogiem.")
+        return
+
+    sciezki_do_zapisu = []
+
+    for biezacy_katalog, podkatalogi, pliki in os.walk(abs_katalog_startowy):
+        sciezki_do_zapisu.append(os.path.abspath(biezacy_katalog))
+        for plik in pliki:
+            sciezki_do_zapisu.append(os.path.abspath(os.path.join(biezacy_katalog, plik)))
+
+    try:
+        # os.path.abspath jest używany, aby plik wyjściowy był tworzony
+        # we właściwym miejscu, jeśli podano ścieżkę względną
+        abs_plik_wyjsciowy = os.path.abspath(plik_wyjsciowy)
+        katalog_docelowy_pliku_wyj = os.path.dirname(abs_plik_wyjsciowy)
+
+        if katalog_docelowy_pliku_wyj and not os.path.exists(katalog_docelowy_pliku_wyj):
+            os.makedirs(katalog_docelowy_pliku_wyj)
+            print(f"Utworzono katalog dla pliku wyjściowego: {katalog_docelowy_pliku_wyj}")
+
+        with open(abs_plik_wyjsciowy, 'w', encoding='utf-8') as f:
+            for sciezka in sciezki_do_zapisu:
+                f.write(sciezka + "\n")
+        print(f"Pomyślnie zapisano ścieżki do pliku: {abs_plik_wyjsciowy}")
+
+    except IOError as e:
+        print(f"Błąd podczas zapisu do pliku '{abs_plik_wyjsciowy}': {e}")
+    except Exception as e:
+        print(f"Wystąpił nieoczekiwany błąd: {e}")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Przeszukuje podany katalog i zapisuje wszystkie znalezione ścieżki (plików i katalogów) do pliku tekstowego."
+    )
+    parser.add_argument(
+        "--katalog",  # Zmienione na argument opcjonalny
+        type=str,
+        default=".",  # Wartość domyślna: bieżący katalog
+        help="Ścieżka do katalogu, który ma zostać przeszukany (domyślnie: bieżący katalog)."
+    )
+    parser.add_argument(
+        "--plik-txt",  # Zmienione na argument opcjonalny
+        type=str,
+        default="lista_sciezek.txt",  # Wartość domyślna
+        help="Ścieżka do pliku .txt, w którym zostaną zapisane wyniki (domyślnie: lista_sciezek.txt w bieżącym katalogu)."
+    )
+
+    args = parser.parse_args()
+
+    # Wyświetlamy pełne ścieżki, które będą użyte
+    rzeczywisty_katalog_do_przeszukania = os.path.abspath(args.katalog)
+    rzeczywisty_plik_wynikowy = os.path.abspath(args.plik_txt)
+
+    print(f"Rozpoczynanie przeszukiwania katalogu: {rzeczywisty_katalog_do_przeszukania}")
+    print(f"Wyniki zostaną zapisane w pliku: {rzeczywisty_plik_wynikowy}")
+
+    zapisz_sciezki_do_pliku(args.katalog, args.plik_txt)
