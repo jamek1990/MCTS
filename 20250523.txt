@@ -1,77 +1,126 @@
 import os
 import argparse
 
-def zapisz_sciezki_do_pliku(katalog_startowy, plik_wyjsciowy):
+def normalize_path(path_str):
+    """Normalizuje ścieżkę, np. zamienia '/' na '\' na Windows."""
+    return os.path.normpath(path_str)
+
+def get_absolute_path(path_str, base_dir_for_relative=None):
+    """
+    Zwraca absolutną ścieżkę. Poprawnie obsługuje ścieżki UNC.
+    """
+    path_str = normalize_path(path_str)
+
+    # Jeśli ścieżka zaczyna się od \\, jest to prawdopodobnie ścieżka UNC.
+    # os.path.isabs() na Windows zwróci True dla \\serwer\udzial
+    if path_str.startswith(r'\\') and os.path.splitdrive(path_str)[0] == '': # Dodatkowe sprawdzenie dla UNC
+        # Dla ścieżek UNC, normpath powinien wystarczyć.
+        # Nie używamy abspath, aby uniknąć problemów.
+        return path_str
+    elif os.path.isabs(path_str):
+        # Już absolutna (np. C:\folder lub ścieżka UNC, którą isabs rozpoznał)
+        return path_str
+    else:
+        # Względna, utwórz absolutną
+        if base_dir_for_relative is None:
+            base_dir_for_relative = os.getcwd()
+        return os.path.abspath(os.path.join(base_dir_for_relative, path_str))
+
+
+def zapisz_sciezki_do_pliku(katalog_startowy_raw, plik_wyjsciowy_raw):
     """
     Przechodzi rekursywnie przez katalog_startowy, zbiera ścieżki do wszystkich
     plików i podkatalogów, a następnie zapisuje je do pliku_wyjsciowego.
 
     Args:
-        katalog_startowy (str): Ścieżka do katalogu, od którego rozpocznie się przeszukiwanie.
-        plik_wyjsciowy (str): Ścieżka do pliku .txt, w którym zostaną zapisane znalezione ścieżki.
+        katalog_startowy_raw (str): Ścieżka do katalogu, od którego rozpocznie się przeszukiwanie.
+        plik_wyjsciowy_raw (str): Ścieżka do pliku .txt, w którym zostaną zapisane znalezione ścieżki.
     """
-    # Sprawdzenie, czy katalog startowy istnieje i jest katalogiem
-    # os.path.abspath jest używany, aby poprawnie obsłużyć "." jako katalog_startowy
-    abs_katalog_startowy = os.path.abspath(katalog_startowy)
-    if not os.path.exists(abs_katalog_startowy):
-        print(f"Błąd: Katalog startowy '{abs_katalog_startowy}' nie istnieje.")
+    katalog_startowy = get_absolute_path(katalog_startowy_raw)
+    plik_wyjsciowy = get_absolute_path(plik_wyjsciowy_raw)
+
+    print(f"--- Przetworzony katalog startowy: {katalog_startowy}")
+    print(f"--- Przetworzony plik wyjściowy: {plik_wyjsciowy}")
+
+    if not os.path.exists(katalog_startowy):
+        print(f"Błąd: Katalog startowy '{katalog_startowy}' nie istnieje lub jest niedostępny.")
+        if katalog_startowy.startswith(r'\\'):
+            print(f"Sprawdź, czy masz dostęp do zasobu sieciowego i czy ścieżka jest poprawna: {katalog_startowy}")
         return
-    if not os.path.isdir(abs_katalog_startowy):
-        print(f"Błąd: Ścieżka startowa '{abs_katalog_startowy}' nie jest katalogiem.")
+    if not os.path.isdir(katalog_startowy):
+        print(f"Błąd: Ścieżka startowa '{katalog_startowy}' nie jest katalogiem.")
         return
 
     sciezki_do_zapisu = []
 
-    for biezacy_katalog, podkatalogi, pliki in os.walk(abs_katalog_startowy):
-        sciezki_do_zapisu.append(os.path.abspath(biezacy_katalog))
-        for plik in pliki:
-            sciezki_do_zapisu.append(os.path.abspath(os.path.join(biezacy_katalog, plik)))
+    try:
+        # os.walk powinien zwracać już absolutne, znormalizowane ścieżki
+        for biezacy_katalog, podkatalogi, pliki in os.walk(katalog_startowy, topdown=True, onerror=lambda err: print(f"Błąd dostępu do katalogu: {err}")):
+            # biezacy_katalog jest już absolutną ścieżką
+            sciezki_do_zapisu.append(normalize_path(biezacy_katalog))
+
+            for plik in pliki:
+                pelna_sciezka_pliku = normalize_path(os.path.join(biezacy_katalog, plik))
+                sciezki_do_zapisu.append(pelna_sciezka_pliku)
+
+    except Exception as e: # Ogólny wyjątek, jeśli os.walk sam w sobie zawiedzie na starcie
+        print(f"Nieoczekiwany błąd podczas przeszukiwania katalogu '{katalog_startowy}': {e}")
+        return
+
+    if not sciezki_do_zapisu and os.path.exists(katalog_startowy) and os.path.isdir(katalog_startowy):
+        # Jeśli katalog istnieje, ale jest pusty lub nie udało się nic odczytać, dodajemy sam katalog
+        print(f"Informacja: Katalog '{katalog_startowy}' jest pusty lub nie zawiera dostępnych elementów.")
+        sciezki_do_zapisu.append(katalog_startowy) # Dodaj przynajmniej sam katalog
 
     try:
-        # os.path.abspath jest używany, aby plik wyjściowy był tworzony
-        # we właściwym miejscu, jeśli podano ścieżkę względną
-        abs_plik_wyjsciowy = os.path.abspath(plik_wyjsciowy)
-        katalog_docelowy_pliku_wyj = os.path.dirname(abs_plik_wyjsciowy)
-
+        katalog_docelowy_pliku_wyj = os.path.dirname(plik_wyjsciowy)
         if katalog_docelowy_pliku_wyj and not os.path.exists(katalog_docelowy_pliku_wyj):
-            os.makedirs(katalog_docelowy_pliku_wyj)
-            print(f"Utworzono katalog dla pliku wyjściowego: {katalog_docelowy_pliku_wyj}")
+            try:
+                os.makedirs(katalog_docelowy_pliku_wyj)
+                print(f"Utworzono katalog dla pliku wyjściowego: {katalog_docelowy_pliku_wyj}")
+            except PermissionError:
+                print(f"Błąd: Brak uprawnień do utworzenia katalogu '{katalog_docelowy_pliku_wyj}' dla pliku wyjściowego.")
+                return
+            except OSError as e:
+                print(f"Błąd podczas tworzenia katalogu '{katalog_docelowy_pliku_wyj}': {e}")
+                return
 
-        with open(abs_plik_wyjsciowy, 'w', encoding='utf-8') as f:
+        with open(plik_wyjsciowy, 'w', encoding='utf-8') as f:
             for sciezka in sciezki_do_zapisu:
                 f.write(sciezka + "\n")
-        print(f"Pomyślnie zapisano ścieżki do pliku: {abs_plik_wyjsciowy}")
+        print(f"Pomyślnie zapisano {len(sciezki_do_zapisu)} ścieżek do pliku: {plik_wyjsciowy}")
 
     except IOError as e:
-        print(f"Błąd podczas zapisu do pliku '{abs_plik_wyjsciowy}': {e}")
+        print(f"Błąd podczas zapisu do pliku '{plik_wyjsciowy}': {e}")
     except Exception as e:
-        print(f"Wystąpił nieoczekiwany błąd: {e}")
+        print(f"Wystąpił nieoczekiwany błąd podczas zapisu: {e}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Przeszukuje podany katalog i zapisuje wszystkie znalezione ścieżki (plików i katalogów) do pliku tekstowego."
+        description="Przeszukuje podany katalog i zapisuje wszystkie znalezione ścieżki (plików i katalogów) do pliku tekstowego.",
+        formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument(
-        "--katalog",  # Zmienione na argument opcjonalny
+        "--katalog",
         type=str,
-        default=".",  # Wartość domyślna: bieżący katalog
-        help="Ścieżka do katalogu, który ma zostać przeszukany (domyślnie: bieżący katalog)."
+        default=".",
+        help="Ścieżka do katalogu, który ma zostać przeszukany.\n"
+             "Domyślnie: bieżący katalog ('.').\n"
+             "Dla ścieżek sieciowych (UNC) użyj formatu: \\\\serwer\\udzial\\folder"
     )
     parser.add_argument(
-        "--plik-txt",  # Zmienione na argument opcjonalny
+        "--plik-txt",
         type=str,
-        default="lista_sciezek.txt",  # Wartość domyślna
-        help="Ścieżka do pliku .txt, w którym zostaną zapisane wyniki (domyślnie: lista_sciezek.txt w bieżącym katalogu)."
+        default="lista_sciezek.txt",
+        help="Ścieżka do pliku .txt, w którym zostaną zapisane wyniki.\n"
+             "Domyślnie: 'lista_sciezek.txt' w bieżącym katalogu.\n"
+             "Może to być pełna ścieżka, np. C:\\temp\\wyniki.txt lub \\\\serwer\\udzial\\logi\\sciezki.txt"
     )
 
     args = parser.parse_args()
 
-    # Wyświetlamy pełne ścieżki, które będą użyte
-    rzeczywisty_katalog_do_przeszukania = os.path.abspath(args.katalog)
-    rzeczywisty_plik_wynikowy = os.path.abspath(args.plik_txt)
-
-    print(f"Rozpoczynanie przeszukiwania katalogu: {rzeczywisty_katalog_do_przeszukania}")
-    print(f"Wyniki zostaną zapisane w pliku: {rzeczywisty_plik_wynikowy}")
+    print(f"Oryginalny argument --katalog: {args.katalog}")
+    print(f"Oryginalny argument --plik-txt: {args.plik_txt}")
 
     zapisz_sciezki_do_pliku(args.katalog, args.plik_txt)
