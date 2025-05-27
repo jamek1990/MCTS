@@ -1,0 +1,272 @@
+napisz kod w python który
+dla wskazanego katalogu X znajdzie nazwy bezpośrednich podkatalogów których nazwa składa się z "nr - GBT" np. "328 - GBT"
+dla wszystkich podkatalogów o takiej nazwie 
+    sprawdzi czy w bazie DBO.LOG_JABBER znajduje się już numer jeśli nie
+    przekopiuje całość podkatalogu ze wszystkimi podkatalogami i plikami do katalogu Y
+    następnie sprawdzi czy liczba plików w danym podkatalogu Y jest = podkatalogu w X
+    jeśli tak usunie podkatalog ze wszystkimi plikami z X
+    zapisze w bazie DBO.LOG_JABBER informacje o nr oraz dacie przenieniesie timestamp (baza ms sql)
+
+
+import os
+import shutil
+import re
+import pyodbc
+from datetime import datetime
+import logging
+
+# Konfiguracja logowania
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+class GBTMigrator:
+    def __init__(self, source_dir, target_dir, connection_string):
+        """
+        Inicjalizacja migracji katalogów GBT
+        
+        Args:
+            source_dir (str): Katalog źródłowy X
+            target_dir (str): Katalog docelowy Y
+            connection_string (str): Connection string do bazy MS SQL
+        """
+        self.source_dir = source_dir
+        self.target_dir = target_dir
+        self.connection_string = connection_string
+        self.pattern = re.compile(r'^\d+ - GBT$')
+        
+    def connect_to_database(self):
+        """Nawiązuje połączenie z bazą danych"""
+        try:
+            conn = pyodbc.connect(self.connection_string)
+            return conn
+        except Exception as e:
+            logger.error(f"Błąd połączenia z bazą danych: {e}")
+            raise
+    
+    def check_number_exists(self, number):
+        """
+        Sprawdza czy numer już istnieje w bazie DBO.LOG_JABBER
+        
+        Args:
+            number (str): Numer do sprawdzenia
+            
+        Returns:
+            bool: True jeśli numer istnieje, False w przeciwnym razie
+        """
+        try:
+            conn = self.connect_to_database()
+            cursor = conn.cursor()
+            
+            query = "SELECT COUNT(*) FROM DBO.LOG_JABBER WHERE nr = ?"
+            cursor.execute(query, (number,))
+            count = cursor.fetchone()[0]
+            
+            conn.close()
+            return count > 0
+            
+        except Exception as e:
+            logger.error(f"Błąd sprawdzania numeru {number} w bazie: {e}")
+            return True  # W przypadku błędu zakładamy, że numer istnieje
+    
+    def count_files_recursive(self, directory):
+        """
+        Liczy wszystkie pliki w katalogu i podkatalogach rekurencyjnie
+        
+        Args:
+            directory (str): Ścieżka do katalogu
+            
+        Returns:
+            int: Liczba plików
+        """
+        file_count = 0
+        try:
+            for root, dirs, files in os.walk(directory):
+                file_count += len(files)
+        except Exception as e:
+            logger.error(f"Błąd liczenia plików w katalogu {directory}: {e}")
+        return file_count
+    
+    def copy_directory(self, src, dst):
+        """
+        Kopiuje katalog ze wszystkimi podkatalogami i plikami
+        
+        Args:
+            src (str): Ścieżka źródłowa
+            dst (str): Ścieżka docelowa
+            
+        Returns:
+            bool: True jeśli kopiowanie się powiodło
+        """
+        try:
+            if os.path.exists(dst):
+                logger.warning(f"Katalog docelowy już istnieje: {dst}")
+                return False
+                
+            shutil.copytree(src, dst)
+            logger.info(f"Skopiowano katalog: {src} -> {dst}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Błąd kopiowania katalogu {src} -> {dst}: {e}")
+            return False
+    
+    def remove_directory(self, directory):
+        """
+        Usuwa katalog ze wszystkimi plikami i podkatalogami
+        
+        Args:
+            directory (str): Ścieżka do katalogu do usunięcia
+            
+        Returns:
+            bool: True jeśli usunięcie się powiodło
+        """
+        try:
+            shutil.rmtree(directory)
+            logger.info(f"Usunięto katalog: {directory}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Błąd usuwania katalogu {directory}: {e}")
+            return False
+    
+    def log_migration(self, number):
+        """
+        Zapisuje informację o migracji w bazie DBO.LOG_JABBER
+        
+        Args:
+            number (str): Numer przeniesionego katalogu
+        """
+        try:
+            conn = self.connect_to_database()
+            cursor = conn.cursor()
+            
+            timestamp = datetime.now()
+            query = """
+                INSERT INTO DBO.LOG_JABBER (nr, data_przeniesienia)
+                VALUES (?, ?)
+            """
+            
+            cursor.execute(query, (number, timestamp))
+            conn.commit()
+            conn.close()
+            
+            logger.info(f"Zapisano w bazie: numer {number}, timestamp {timestamp}")
+            
+        except Exception as e:
+            logger.error(f"Błąd zapisywania do bazy dla numeru {number}: {e}")
+    
+    def extract_number_from_dirname(self, dirname):
+        """
+        Wyciąga numer z nazwy katalogu
+        
+        Args:
+            dirname (str): Nazwa katalogu w formacie "nr - GBT"
+            
+        Returns:
+            str: Numer lub None jeśli nie znaleziono
+        """
+        match = re.match(r'^(\d+) - GBT$', dirname)
+        return match.group(1) if match else None
+    
+    def process_directories(self):
+        """
+        Główna funkcja przetwarzająca katalogi
+        """
+        if not os.path.exists(self.source_dir):
+            logger.error(f"Katalog źródłowy nie istnieje: {self.source_dir}")
+            return
+        
+        if not os.path.exists(self.target_dir):
+            logger.info(f"Tworzenie katalogu docelowego: {self.target_dir}")
+            os.makedirs(self.target_dir)
+        
+        # Znajdź wszystkie podkatalogi pasujące do wzorca
+        matching_dirs = []
+        try:
+            for item in os.listdir(self.source_dir):
+                item_path = os.path.join(self.source_dir, item)
+                if os.path.isdir(item_path) and self.pattern.match(item):
+                    matching_dirs.append(item)
+        except Exception as e:
+            logger.error(f"Błąd odczytu katalogu źródłowego: {e}")
+            return
+        
+        logger.info(f"Znaleziono {len(matching_dirs)} katalogów pasujących do wzorca")
+        
+        for dirname in matching_dirs:
+            logger.info(f"Przetwarzanie katalogu: {dirname}")
+            
+            # Wyciągnij numer z nazwy katalogu
+            number = self.extract_number_from_dirname(dirname)
+            if not number:
+                logger.warning(f"Nie można wyciągnąć numeru z nazwy: {dirname}")
+                continue
+            
+            # Sprawdź czy numer już istnieje w bazie
+            if self.check_number_exists(number):
+                logger.info(f"Numer {number} już istnieje w bazie - pomijanie")
+                continue
+            
+            source_path = os.path.join(self.source_dir, dirname)
+            target_path = os.path.join(self.target_dir, dirname)
+            
+            # Kopiuj katalog
+            if not self.copy_directory(source_path, target_path):
+                logger.error(f"Nie udało się skopiować katalogu {dirname}")
+                continue
+            
+            # Sprawdź liczby plików
+            source_file_count = self.count_files_recursive(source_path)
+            target_file_count = self.count_files_recursive(target_path)
+            
+            logger.info(f"Liczba plików - źródło: {source_file_count}, cel: {target_file_count}")
+            
+            if source_file_count == target_file_count:
+                # Usuń katalog źródłowy
+                if self.remove_directory(source_path):
+                    # Zapisz w bazie
+                    self.log_migration(number)
+                    logger.info(f"Pomyślnie przeniesiono katalog {dirname}")
+                else:
+                    logger.error(f"Nie udało się usunąć katalogu źródłowego {dirname}")
+            else:
+                logger.error(f"Niezgodność liczby plików dla katalogu {dirname}")
+                logger.error("Katalog źródłowy nie został usunięty")
+
+
+def main():
+    """
+    Przykład użycia skryptu
+    """
+    # Konfiguracja
+    SOURCE_DIR = r"C:\path\to\source\directory"  # Katalog X
+    TARGET_DIR = r"C:\path\to\target\directory"  # Katalog Y
+    
+    # Connection string do MS SQL Server
+    CONNECTION_STRING = (
+        "DRIVER={ODBC Driver 17 for SQL Server};"
+        "SERVER=your_server_name;"
+        "DATABASE=your_database_name;"
+        "UID=your_username;"
+        "PWD=your_password;"
+    )
+    
+    # Alternatywnie dla Windows Authentication:
+    # CONNECTION_STRING = (
+    #     "DRIVER={ODBC Driver 17 for SQL Server};"
+    #     "SERVER=your_server_name;"
+    #     "DATABASE=your_database_name;"
+    #     "Trusted_Connection=yes;"
+    # )
+    
+    try:
+        migrator = GBTMigrator(SOURCE_DIR, TARGET_DIR, CONNECTION_STRING)
+        migrator.process_directories()
+        logger.info("Migracja zakończona")
+        
+    except Exception as e:
+        logger.error(f"Błąd podczas migracji: {e}")
+
+
+if __name__ == "__main__":
+    main()
