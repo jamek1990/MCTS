@@ -1,0 +1,253 @@
+w katalogu SOURCE_DIR mam wiele podkatalogów o nazwie "rrrr-mm-dd" chciałbym kopiować je z całą zawartości do katalogu TARGET_DIR ; proces będzie uruchamiany codziennie (bo w katalogu SOURCE_DIR  może powstać nowy katalog); aby wiedzieć czy już dany katalog jest załadowany będę logował informacje w tabeli dbo.LOG_SYSTEM na bazie ms sql; więc na początku powinniśmy pobrać wszystkie załadowane katalogi z LOG_SYSTEM do df by szybko weryfikować który katalog nie został jeszcze przekopiowany; z uwagi że w SOURCE_DIR będzie wiele katalogów to ograniczamy się tylko do tych gdzie data jest większa niż "2025-05-01"; dodatkowo najnowszy katalog może jeszcze nie zawierać wszystkich danych więc nie powinien być jeszcze przekopiowywany dopóki nie powstanie kolejny; napisz kod w python działający pod system windows;  wykorzystaj biblioteki pyodbc; re; shutil; os; datetime; logging
+
+Główne komponenty:
+
+Klasa DirectoryCopier - główna klasa obsługująca cały proces
+Walidacja katalogów - sprawdza format daty (YYYY-MM-DD) i filtruje od 2025-05-01
+Integracja z MS SQL - pobiera już załadowane katalogi i loguje operacje
+Wykluczenie najnowszego katalogu - zabezpiecza przed kopiowaniem niekompletnych danych
+Kompleksowe logowanie - zarówno do pliku jak i konsoli
+
+Wymagania do uruchomienia:
+
+Tabela LOG_SYSTEM w bazie danych:
+
+sqlCREATE TABLE dbo.LOG_SYSTEM (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    directory_name VARCHAR(255),
+    operation_type VARCHAR(50),
+    status VARCHAR(20),
+    message VARCHAR(1000),
+    timestamp DATETIME
+);
+
+
+import pyodbc
+import re
+import shutil
+import os
+import datetime
+import logging
+import pandas as pd
+from datetime import datetime as dt, timedelta
+
+# Konfiguracja logowania
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('dir_copy.log', encoding='utf-8'),
+        logging.StreamHandler()
+    ]
+)
+
+class DirectoryCopier:
+    def __init__(self, source_dir, target_dir, connection_string):
+        self.source_dir = source_dir
+        self.target_dir = target_dir
+        self.connection_string = connection_string
+        self.date_pattern = re.compile(r'^(\d{4})-(\d{2})-(\d{2})$')
+        self.min_date = dt.strptime('2025-05-01', '%Y-%m-%d').date()
+        
+    def connect_to_db(self):
+        """Nawiązuje połączenie z bazą danych MS SQL"""
+        try:
+            conn = pyodbc.connect(self.connection_string)
+            logging.info("Połączono z bazą danych")
+            return conn
+        except Exception as e:
+            logging.error(f"Błąd połączenia z bazą danych: {e}")
+            raise
+    
+    def get_loaded_directories(self):
+        """Pobiera listę już załadowanych katalogów z tabeli LOG_SYSTEM"""
+        try:
+            conn = self.connect_to_db()
+            query = """
+            SELECT DISTINCT directory_name 
+            FROM dbo.LOG_SYSTEM 
+            WHERE operation_type = 'DIRECTORY_COPY' 
+            AND status = 'SUCCESS'
+            """
+            
+            df = pd.read_sql(query, conn)
+            conn.close()
+            
+            loaded_dirs = set(df['directory_name'].tolist()) if not df.empty else set()
+            logging.info(f"Znaleziono {len(loaded_dirs)} już załadowanych katalogów")
+            return loaded_dirs
+            
+        except Exception as e:
+            logging.error(f"Błąd pobierania danych z LOG_SYSTEM: {e}")
+            return set()
+    
+    def is_valid_date_directory(self, dir_name):
+        """Sprawdza czy nazwa katalogu jest w formacie YYYY-MM-DD i data >= 2025-05-01"""
+        match = self.date_pattern.match(dir_name)
+        if not match:
+            return False
+        
+        try:
+            year, month, day = map(int, match.groups())
+            dir_date = dt(year, month, day).date()
+            return dir_date >= self.min_date
+        except ValueError:
+            return False
+    
+    def get_directories_to_copy(self):
+        """Pobiera katalogi do kopiowania (wyklucza najnowszy i już załadowane)"""
+        if not os.path.exists(self.source_dir):
+            logging.error(f"Katalog źródłowy nie istnieje: {self.source_dir}")
+            return []
+        
+        # Pobierz wszystkie katalogi z SOURCE_DIR
+        all_dirs = [d for d in os.listdir(self.source_dir) 
+                   if os.path.isdir(os.path.join(self.source_dir, d)) 
+                   and self.is_valid_date_directory(d)]
+        
+        if not all_dirs:
+            logging.info("Nie znaleziono katalogów do przetworzenia")
+            return []
+        
+        # Sortuj katalogi według daty
+        all_dirs.sort()
+        
+        # Wyklucz najnowszy katalog (może być niekompletny)
+        if len(all_dirs) > 1:
+            dirs_to_process = all_dirs[:-1]  # Wszystkie oprócz ostatniego
+            logging.info(f"Wykluczono najnowszy katalog: {all_dirs[-1]}")
+        else:
+            logging.info("Tylko jeden katalog dostępny - zostanie wykluczony jako potencjalnie niekompletny")
+            return []
+        
+        # Pobierz już załadowane katalogi
+        loaded_dirs = self.get_loaded_directories()
+        
+        # Filtruj katalogi które jeszcze nie zostały załadowane
+        dirs_to_copy = [d for d in dirs_to_process if d not in loaded_dirs]
+        
+        logging.info(f"Katalogi do kopiowania: {len(dirs_to_copy)} z {len(dirs_to_process)} dostępnych")
+        return dirs_to_copy
+    
+    def log_operation(self, directory_name, status, message=""):
+        """Loguje operację do tabeli LOG_SYSTEM"""
+        try:
+            conn = self.connect_to_db()
+            cursor = conn.cursor()
+            
+            insert_query = """
+            INSERT INTO dbo.LOG_SYSTEM 
+            (directory_name, operation_type, status, message, timestamp)
+            VALUES (?, ?, ?, ?, ?)
+            """
+            
+            cursor.execute(insert_query, 
+                         directory_name, 
+                         'DIRECTORY_COPY', 
+                         status, 
+                         message, 
+                         dt.now())
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            logging.info(f"Zalogowano operację dla {directory_name}: {status}")
+            
+        except Exception as e:
+            logging.error(f"Błąd logowania operacji dla {directory_name}: {e}")
+    
+    def copy_directory(self, dir_name):
+        """Kopiuje katalog z SOURCE_DIR do TARGET_DIR"""
+        source_path = os.path.join(self.source_dir, dir_name)
+        target_path = os.path.join(self.target_dir, dir_name)
+        
+        try:
+            # Sprawdź czy katalog docelowy już istnieje
+            if os.path.exists(target_path):
+                logging.warning(f"Katalog docelowy już istnieje: {target_path}")
+                self.log_operation(dir_name, "SKIPPED", "Target directory already exists")
+                return False
+            
+            # Utwórz katalog TARGET_DIR jeśli nie istnieje
+            os.makedirs(self.target_dir, exist_ok=True)
+            
+            # Kopiuj katalog
+            logging.info(f"Rozpoczynam kopiowanie: {source_path} -> {target_path}")
+            shutil.copytree(source_path, target_path)
+            
+            # Sprawdź czy kopiowanie się powiodło
+            if os.path.exists(target_path):
+                logging.info(f"Pomyślnie skopiowano katalog: {dir_name}")
+                self.log_operation(dir_name, "SUCCESS", f"Copied from {source_path} to {target_path}")
+                return True
+            else:
+                logging.error(f"Kopiowanie nie powiodło się dla: {dir_name}")
+                self.log_operation(dir_name, "FAILED", "Copy operation failed - target not found")
+                return False
+                
+        except Exception as e:
+            error_msg = f"Błąd kopiowania {dir_name}: {str(e)}"
+            logging.error(error_msg)
+            self.log_operation(dir_name, "FAILED", error_msg)
+            return False
+    
+    def run(self):
+        """Główna metoda uruchamiająca proces kopiowania"""
+        logging.info("Rozpoczynam proces kopiowania katalogów")
+        
+        # Pobierz katalogi do kopiowania
+        dirs_to_copy = self.get_directories_to_copy()
+        
+        if not dirs_to_copy:
+            logging.info("Brak katalogów do kopiowania")
+            return
+        
+        # Kopiuj katalogi
+        success_count = 0
+        fail_count = 0
+        
+        for dir_name in dirs_to_copy:
+            logging.info(f"Przetwarzam katalog: {dir_name}")
+            
+            if self.copy_directory(dir_name):
+                success_count += 1
+            else:
+                fail_count += 1
+        
+        # Podsumowanie
+        logging.info(f"Proces zakończony. Sukces: {success_count}, Błędy: {fail_count}")
+
+def main():
+    # Konfiguracja
+    SOURCE_DIR = r"C:\path\to\source"  # Zmień na właściwą ścieżkę
+    TARGET_DIR = r"C:\path\to\target"  # Zmień na właściwą ścieżkę
+    
+    # Connection string dla MS SQL Server
+    # Dostosuj parametry połączenia do swojej bazy
+    CONNECTION_STRING = (
+        "DRIVER={ODBC Driver 17 for SQL Server};"
+        "SERVER=your_server_name;"
+        "DATABASE=your_database_name;"
+        "UID=your_username;"
+        "PWD=your_password"
+    )
+    
+    # Alternatywnie dla Windows Authentication:
+    # CONNECTION_STRING = (
+    #     "DRIVER={ODBC Driver 17 for SQL Server};"
+    #     "SERVER=your_server_name;"
+    #     "DATABASE=your_database_name;"
+    #     "Trusted_Connection=yes;"
+    # )
+    
+    try:
+        # Utwórz instancję kopiującą i uruchom proces
+        copier = DirectoryCopier(SOURCE_DIR, TARGET_DIR, CONNECTION_STRING)
+        copier.run()
+        
+    except Exception as e:
+        logging.error(f"Krytyczny błąd aplikacji: {e}")
+
+if __name__ == "__main__":
+    main()
