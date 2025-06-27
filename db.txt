@@ -1,0 +1,119 @@
+import pyodbc
+import json
+
+class DB:
+    """
+    Klasa do obsługi połączenia z bazą danych MS SQL Server
+    i pobierania transkrypcji.
+    """
+    def __init__(self, server, database, username, password):
+        """
+        Inicjalizuje obiekt i nawiązuje połączenie z bazą danych.
+
+        :param server: Nazwa lub adres IP serwera SQL.
+        :param database: Nazwa bazy danych.
+        :param username: Nazwa użytkownika.
+        :param password: Hasło użytkownika.
+        """
+        self.conn = None
+        self.cursor = None
+        # Zdefiniowanie connection stringa. Upewnij się, że nazwa sterownika
+        # 'ODBC Driver 17 for SQL Server' jest poprawna dla Twojego systemu.
+        conn_str = (
+            f'DRIVER={{ODBC Driver 17 for SQL Server}};'
+            f'SERVER={server};'
+            f'DATABASE={database};'
+            f'UID={username};'
+            f'PWD={password};'
+        )
+
+        try:
+            self.conn = pyodbc.connect(conn_str)
+            self.cursor = self.conn.cursor()
+            print("INFO: Pomyślnie połączono z bazą danych.")
+        except pyodbc.Error as ex:
+            sqlstate = ex.args[0]
+            print(f"BŁĄD: Nie można połączyć się z bazą danych. SQLSTATE: {sqlstate}")
+            print(ex)
+
+    def get_transcript(self, id_transcript: int) -> str:
+        """
+        Pobiera wszystkie wiersze dla danej transkrypcji i zwraca je jako JSON.
+
+        :param id_transcript: ID transkrypcji do pobrania.
+        :return: Ciąg znaków w formacie JSON lub pusty JSON '[]' w przypadku błędu.
+        """
+        if not self.cursor:
+            print("BŁĄD: Brak aktywnego połączenia z bazą danych.")
+            return json.dumps([])
+
+        # UWAGA: Zmień 'Transkrypcje' na rzeczywistą nazwę Twojej tabeli.
+        # Użycie '?' w zapytaniu chroni przed atakami typu SQL Injection.
+        sql_query = """
+            SELECT id_zdania, text
+            FROM Transkrypcje
+            WHERE id_transcript = ?
+            ORDER BY id_zdania;
+        """
+
+        try:
+            # Wykonanie zapytania z bezpiecznym parametrem
+            self.cursor.execute(sql_query, id_transcript)
+            rows = self.cursor.fetchall()
+
+            # Tworzenie listy słowników zgodnie z wymaganym formatem
+            result_list = []
+            for row in rows:
+                result_list.append({
+                    "ID": row.id_zdania,
+                    "Tekst": row.text
+                })
+            
+            # Konwersja listy do formatu JSON
+            # ensure_ascii=False zapewnia poprawne kodowanie polskich znaków
+            # indent=2 formatuje JSON w czytelny sposób
+            return json.dumps(result_list, ensure_ascii=False, indent=2)
+
+        except pyodbc.Error as ex:
+            print(f"BŁĄD: Wystąpił błąd podczas wykonywania zapytania SQL: {ex}")
+            return json.dumps([])
+
+    def close_connection(self):
+        """
+        Zamyka kursor i połączenie z bazą danych.
+        """
+        if self.cursor:
+            self.cursor.close()
+            print("INFO: Kursor bazy danych został zamknięty.")
+        if self.conn:
+            self.conn.close()
+            print("INFO: Połączenie z bazą danych zostało zamknięte.")
+
+
+# --- PRZYKŁAD UŻYCIA ---
+if __name__ == '__main__':
+    # Zastąp poniższe dane swoimi danymi logowania do bazy MS SQL
+    DB_SERVER = "adres_twojego_serwera"
+    DB_NAME = "nazwa_twojej_bazy"
+    DB_USER = "twoj_uzytkownik"
+    DB_PASS = "twoje_haslo"
+
+    # Utworzenie instancji klasy DB i nawiązanie połączenia
+    db_connector = DB(server=DB_SERVER, database=DB_NAME, username=DB_USER, password=DB_PASS)
+
+    # Sprawdzenie, czy połączenie się udało, przed dalszymi operacjami
+    if db_connector.conn:
+        # ID transkrypcji, którą chcemy pobrać
+        id_do_pobrania = 123  # Przykładowe ID
+
+        print(f"\n--- Pobieranie transkrypcji o ID: {id_do_pobrania} ---")
+        
+        # Wywołanie funkcji i pobranie JSONa
+        transcript_json = db_connector.get_transcript(id_do_pobrania)
+
+        # Wyświetlenie wyniku
+        print("Otrzymany wynik w formacie JSON:")
+        print(transcript_json)
+
+        # Zawsze zamykaj połączenie po zakończeniu pracy
+        db_connector.close_connection()
