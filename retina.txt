@@ -1,0 +1,30 @@
+#!/usr/bin/env python3
+"""Porównuje dwie twarze na podstawie DeepFace verify"""
+from deepface import DeepFace
+
+def compare_faces(img_path1: str, img_path2: str):
+    result = DeepFace.verify(img_path1, img_path2, detector_backend='retinaface')
+    verified = result.get("verified", False)
+    distance = result.get("distance")
+    threshold = result.get("threshold")
+    return verified, distance, threshold
+
+if __name__ == "__main__":
+    img1 = "img1.jpg"
+    img2 = "img2.jpg"
+    try:
+        verified, dist, thr = compare_faces(img1, img2)
+        if verified:
+            print(f"Osoby na obrazkach są takie same (distance={dist:.4f} <= threshold {thr}).")
+        else:
+            print(f"Osoby na obrazkach są różne (distance={dist:.4f} > threshold {thr}).")
+    except Exception as e:
+        print(f"Wystąpił błąd podczas porównywania twarzy: {e}") 
+
+#Downloading...
+#From: https://github.com/serengil/deepface_models/releases/download/v1.0/vgg_face_weights.h5
+#To: C:\Users\GenAI\.deepface\weights\vgg_face_weights.h5
+
+#Downloading...
+#From: https://github.com/serengil/deepface_models/releases/download/v1.0/retinaface.h5
+#To: C:\Users\GenAI\.deepface\weights\retinaface.h5
