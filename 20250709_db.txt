@@ -1,0 +1,137 @@
+import os
+import re
+import pandas as pd
+from pathlib import Path
+
+def scan_database_objects(df_bazy, df_tabele, scan_directory="."):
+    """
+    Skanuje pliki .py i .sql w poszukiwaniu obiektów w formacie XXX.YYY
+    
+    Args:
+        df_bazy: DataFrame z kolumnami [database, table] - lista dostępnych baz
+        df_tabele: DataFrame z kolumnami [database, table] - lista dostępnych tabel
+        scan_directory: ścieżka do katalogu do przeskanowania
+    
+    Returns:
+        list: lista znalezionych obiektów [XXX.YYY, XXX.YYY]
+    """
+    
+    # Konwertuj wszystko na upper case
+    df_bazy = df_bazy.copy()
+    df_tabele = df_tabele.copy()
+    df_bazy['database'] = df_bazy['database'].str.upper()
+    df_bazy['table'] = df_bazy['table'].str.upper()
+    df_tabele['database'] = df_tabele['database'].str.upper()
+    df_tabele['table'] = df_tabele['table'].str.upper()
+    
+    # Utwórz słownik mapujący bazę danych na dostępne tabele
+    database_tables = {}
+    for _, row in df_tabele.iterrows():
+        database = row['database']
+        table = row['table']
+        if database not in database_tables:
+            database_tables[database] = []
+        database_tables[database].append(table)
+    
+    # Pobierz listę dostępnych baz
+    available_databases = set(df_bazy['database'].unique())
+    
+    found_objects = set()
+    
+    # Wzorzec do znajdowania obiektów XXX.YYY
+    pattern = re.compile(r'\b([A-Za-z_][A-Za-z0-9_]*)\\.([A-Za-z_][A-Za-z0-9_]*)\b')
+    
+    # Funkcja do przetwarzania pojedynczego pliku
+    def process_file(file_path):
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as file:
+                content = file.read()
+                
+                # Znajdź wszystkie potencjalne obiekty XXX.YYY
+                matches = pattern.findall(content)
+                
+                for database, table in matches:
+                    database_upper = database.upper()
+                    table_upper = table.upper()
+                    
+                    # Sprawdź czy baza istnieje
+                    if database_upper in available_databases:
+                        # Sprawdź czy tabela istnieje w tej bazie
+                        if database_upper in database_tables:
+                            available_tables = database_tables[database_upper]
+                            
+                            # Znajdź najdłuższą pasującą nazwę tabeli
+                            # Sortuj tabele według długości (najdłuższe pierwsze)
+                            matching_tables = [t for t in available_tables 
+                                             if t.startswith(table_upper)]
+                            
+                            if matching_tables:
+                                # Wybierz najdłuższą pasującą tabelę
+                                best_match = max(matching_tables, key=len)
+                                found_objects.add(f"{database_upper}.{best_match}")
+                            
+        except Exception as e:
+            print(f"Błąd podczas przetwarzania pliku {file_path}: {e}")
+    
+    # Znajdź wszystkie pliki .py i .sql
+    scan_path = Path(scan_directory)
+    
+    for file_path in scan_path.rglob("*.py"):
+        process_file(file_path)
+    
+    for file_path in scan_path.rglob("*.sql"):
+        process_file(file_path)
+    
+    return sorted(list(found_objects))
+
+# Przykład użycia
+if __name__ == "__main__":
+    # Przykładowe dane - zastąp własnymi DataFrames
+    df_bazy = pd.DataFrame({
+        'database': ['PROD_DB', 'TEST_DB', 'DEV_DB'],
+        'table': ['users', 'orders', 'products']  # Ta kolumna może nie być używana w tym kontekście
+    })
+    
+    df_tabele = pd.DataFrame({
+        'database': ['PROD_DB', 'PROD_DB', 'PROD_DB', 'TEST_DB', 'TEST_DB', 'DEV_DB'],
+        'table': ['users', 'user_profiles', 'orders', 'test_users', 'test_orders', 'dev_table']
+    })
+    
+    # Uruchom skaner
+    found_objects = scan_database_objects(df_bazy, df_tabele, ".")
+    
+    print("Znalezione obiekty bazy danych:")
+    for obj in found_objects:
+        print(f"  {obj}")
+    
+    print(f"\nLiczba znalezionych obiektów: {len(found_objects)}")
+
+# Dodatkowa funkcja pomocnicza do bardziej szczegółowego raportu
+def generate_detailed_report(df_bazy, df_tabele, scan_directory="."):
+    """
+    Generuje szczegółowy raport z informacjami o znalezionych obiektach
+    """
+    found_objects = scan_database_objects(df_bazy, df_tabele, scan_directory)
+    
+    print("=== SZCZEGÓŁOWY RAPORT ===")
+    print(f"Przeskanowany katalog: {scan_directory}")
+    print(f"Dostępne bazy danych: {len(df_bazy['database'].unique())}")
+    print(f"Dostępne tabele: {len(df_tabele)}")
+    print(f"Znalezione obiekty: {len(found_objects)}")
+    print()
+    
+    # Grupuj według baz danych
+    objects_by_db = {}
+    for obj in found_objects:
+        db, table = obj.split('.')
+        if db not in objects_by_db:
+            objects_by_db[db] = []
+        objects_by_db[db].append(table)
+    
+    for db, tables in objects_by_db.items():
+        print(f"Baza: {db}")
+        for table in sorted(tables):
+            print(f"  - {table}")
+        print()
+    
+    return found_objects
