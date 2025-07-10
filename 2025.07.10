@@ -1,0 +1,71 @@
+mam tabelę ba bazie danych dbo.rozmowy
+kolumny:
+id - id rekordu
+cvstyp z wartościami ('CDR','VOX')
+duration - czas w sekundach
+cvsc01 like '%Handset%'
+record_start_dte - data rozpoczęcia nagrania
+record_end_dte - data zakończenia nagrania
+skp - user
+dla rekordów z  CDR - chciałbym połączyć z rekordami VOX
+do 1 rekordu CDR może być wiele rekordów VOX
+VOX może być przypięty tylko do 1 CDR
+połączenie CDR z VOX odbywa się przez ten sam SKP oraz daty VOX powinny być zawarte w daty CDR
+VOX może się rozpocząć chwilę przed i zakończyć chwilę po niż data CDR
+jeśli VOX nakłada się na 2 CDR wybieramy ten gdzie nałożenie jest najdłuższe
+napisz SQL, rozwiązujący to zadanie, w odpowiedzi powinniśmy dostać:
+CDR_ID, VOX_ID
+rozwiązanie będzie testowane na MS SQL
+
+
+
+
+
+WITH VoxOverlaps AS (
+    -- Obliczamy nakładanie się każdego VOX z każdym CDR dla tego samego użytkownika
+    SELECT 
+        cdr.id as CDR_ID,
+        vox.id as VOX_ID,
+        cdr.skp,
+        -- Obliczamy długość nakładania się okresów
+        DATEDIFF(second, 
+            CASE 
+                WHEN vox.record_start_dte > cdr.record_start_dte 
+                THEN vox.record_start_dte 
+                ELSE cdr.record_start_dte 
+            END,
+            CASE 
+                WHEN vox.record_end_dte < cdr.record_end_dte 
+                THEN vox.record_end_dte 
+                ELSE cdr.record_end_dte 
+            END
+        ) as overlap_seconds
+    FROM dbo.rozmowy cdr
+    INNER JOIN dbo.rozmowy vox ON cdr.skp = vox.skp
+    WHERE cdr.cvstyp = 'CDR' 
+        AND vox.cvstyp = 'VOX'
+        AND cdr.cvsc01 LIKE '%Handset%'
+        -- Sprawdzamy czy okresy się nakładają (VOX może zacząć się przed i skończyć po CDR)
+        AND vox.record_start_dte <= cdr.record_end_dte
+        AND vox.record_end_dte >= cdr.record_start_dte
+),
+RankedOverlaps AS (
+    -- Dla każdego VOX znajdujemy CDR z najdłuższym nakładaniem
+    SELECT 
+        CDR_ID,
+        VOX_ID,
+        skp,
+        overlap_seconds,
+        ROW_NUMBER() OVER (
+            PARTITION BY VOX_ID 
+            ORDER BY overlap_seconds DESC, CDR_ID
+        ) as rn
+    FROM VoxOverlaps
+    WHERE overlap_seconds > 0  -- Tylko rzeczywiste nakładania
+)
+SELECT 
+    CDR_ID,
+    VOX_ID
+FROM RankedOverlaps
+WHERE rn = 1  -- Wybieramy CDR z najdłuższym nakładaniem dla każdego VOX
+ORDER BY CDR_ID, VOX_ID;
