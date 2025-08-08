@@ -1,0 +1,71 @@
+import os
+from lxml import etree
+import csv
+
+def extract_address_points_to_csv(input_dir, output_csv_path):
+    """
+    Przeszukuje wszystkie pliki XML w katalogu `input_dir` i zapisuje dane adresowe
+     do jednego pliku CSV `output_csv_path`.
+    """
+    ns = {
+        "prg-ad": "urn:gugik:specyfikacje:gmlas:panstwowyRejestrGranicAdresy:1.0",
+        "gml": "http://www.opengis.net/gml/3.2"
+    }
+
+    with open(output_csv_path, mode="w", newline="", encoding="utf-8") as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow([
+            "waznyOd", "jst_kraj", "jst_woj", "jst_pow", "jst_gmi",
+            "miejscowosc", "ulica", "numerPorzadkowy", "kodPocztowy", "status",
+            "pos_x", "pos_y"
+        ])
+
+        for filename in os.listdir(input_dir):
+            if not filename.endswith(".xml"):
+                continue
+
+            file_path = os.path.join(input_dir, filename)
+
+            try:
+                context = etree.iterparse(
+                    file_path,
+                    events=("end",),
+                    tag="{urn:gugik:specyfikacje:gmlas:panstwowyRejestrGranicAdresy:1.0}PRG_PunktAdresowy"
+                )
+
+                for _, elem in context:
+                    postal_elem = elem.find(".//prg-ad:kodPocztowy", namespaces=ns)
+                    if postal_elem is not None:
+                        def get_text(path):
+                            el = elem.find(path, namespaces=ns)
+                            return el.text if el is not None and el.text else ""
+
+                        jst_list = elem.findall(".//prg-ad:jednostkaAdmnistracyjna", namespaces=ns)
+                        jst_texts = [j.text for j in jst_list] + [""] * 4
+                        jst_kraj, jst_woj, jst_pow, jst_gmi = jst_texts[:4]
+
+                        pos_el = elem.find(".//gml:pos", namespaces=ns)
+                        pos_x, pos_y = "", ""
+                        if pos_el is not None and pos_el.text:
+                            coords = pos_el.text.strip().split()
+                            if len(coords) == 2:
+                                pos_x, pos_y = coords
+
+                        writer.writerow([
+                            get_text(".//prg-ad:waznyOd"),
+                            jst_kraj, jst_woj, jst_pow, jst_gmi,
+                            get_text(".//prg-ad:miejscowosc"),
+                            get_text(".//prg-ad:ulica"),
+                            get_text(".//prg-ad:numerPorzadkowy"),
+                            get_text(".//prg-ad:kodPocztowy"),
+                            get_text(".//prg-ad:status"),
+                            pos_x, pos_y
+                        ])
+                    elem.clear()
+            except Exception as e:
+                print(f"Błąd podczas przetwarzania pliku {filename}: {e}")
+
+extract_address_points_to_csv(
+    input_dir="x", #tutaj katalog z xml
+    output_csv_path="adresy.csv"
+)
