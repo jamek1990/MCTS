@@ -1,0 +1,61 @@
+import email
+import json
+from email import policy
+from email.parser import BytesParser
+
+def parse_eml(eml_bytes: bytes):
+    # Parsowanie wiadomości z bajtów
+    msg = BytesParser(policy=policy.default).parsebytes(eml_bytes)
+
+    # Zbieranie podstawowych nagłówków
+    data = {
+        "from": msg.get("From"),
+        "to": msg.get("To"),
+        "cc": msg.get("Cc"),
+        "bcc": msg.get("Bcc"),
+        "subject": msg.get("Subject"),
+        "date": msg.get("Date"),
+        "text": None,
+        "html": None,
+        "attachments": []
+    }
+
+    # Funkcja pomocnicza do dekodowania treści
+    def decode_part(part, fallback="latin2"):
+        charset = part.get_content_charset() or fallback
+        try:
+            return part.get_payload(decode=True).decode(charset, errors="replace")
+        except Exception:
+            return part.get_payload(decode=True).decode(fallback, errors="replace")
+
+    # Jeżeli wiadomość jest wieloczęściowa
+    if msg.is_multipart():
+        for part in msg.walk():
+            content_type = part.get_content_type()
+            content_disposition = str(part.get("Content-Disposition", "")).lower()
+
+            if "attachment" in content_disposition:
+                # Załącznik
+                filename = part.get_filename()
+                if filename:
+                    data["attachments"].append(filename)
+            elif content_type == "text/plain" and data["text"] is None:
+                data["text"] = decode_part(part)
+            elif content_type == "text/html" and data["html"] is None:
+                data["html"] = decode_part(part)
+    else:
+        # Jeżeli mail nie jest multipart
+        content_type = msg.get_content_type()
+        if content_type == "text/plain":
+            data["text"] = decode_part(msg)
+        elif content_type == "text/html":
+            data["html"] = decode_part(msg)
+
+    return json.dumps(data, indent=4, ensure_ascii=False)
+
+
+# --- PRZYKŁAD UŻYCIA ---
+if __name__ == "__main__":
+    # tu podstaw swoje bajty maila np. z bazy, IMAP-a, API itp.
+    rb = b"...tutaj surowa tresc maila w formacie RFC822..."  
+    print(parse_eml(rb))
