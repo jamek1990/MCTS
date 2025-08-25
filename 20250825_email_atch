@@ -1,0 +1,175 @@
+import email
+from email.message import EmailMessage
+import sys
+
+def get_email_size_mb(eml_bytes):
+    """
+    Oblicza rozmiar wiadomości email w MB
+    
+    Args:
+        eml_bytes: bytes - surowe dane wiadomości email
+    
+    Returns:
+        float: rozmiar w MB
+    """
+    # Rozmiar surowych danych w bajtach
+    raw_size_bytes = len(eml_bytes)
+    
+    # Konwersja na MB (1 MB = 1024 * 1024 bajtów)
+    size_mb = raw_size_bytes / (1024 * 1024)
+    
+    return size_mb
+
+def get_detailed_email_info(eml_bytes):
+    """
+    Szczegółowe informacje o rozmiarze wiadomości email
+    
+    Args:
+        eml_bytes: bytes - surowe dane wiadomości email
+    
+    Returns:
+        dict: słownik z informacjami o rozmiarach
+    """
+    # Parsowanie wiadomości
+    try:
+        msg = email.message_from_bytes(eml_bytes)
+    except Exception as e:
+        return {"error": f"Błąd parsowania wiadomości: {e}"}
+    
+    # Rozmiary w różnych jednostkach
+    raw_size_bytes = len(eml_bytes)
+    size_kb = raw_size_bytes / 1024
+    size_mb = raw_size_bytes / (1024 * 1024)
+    
+    # Informacje o załącznikach
+    attachments_size = 0
+    attachments_count = 0
+    
+    if msg.is_multipart():
+        for part in msg.walk():
+            if part.get_content_disposition() == 'attachment':
+                attachments_count += 1
+                payload = part.get_payload(decode=True)
+                if payload:
+                    attachments_size += len(payload)
+    
+    # Rozmiar treści bez załączników
+    content_size = raw_size_bytes - attachments_size
+    
+    return {
+        "total_size_bytes": raw_size_bytes,
+        "total_size_kb": round(size_kb, 2),
+        "total_size_mb": round(size_mb, 4),
+        "content_size_bytes": content_size,
+        "content_size_mb": round(content_size / (1024 * 1024), 4),
+        "attachments_size_bytes": attachments_size,
+        "attachments_size_mb": round(attachments_size / (1024 * 1024), 4),
+        "attachments_count": attachments_count,
+        "subject": msg.get("Subject", "Brak tematu"),
+        "from": msg.get("From", "Nieznany nadawca"),
+        "date": msg.get("Date", "Nieznana data")
+    }
+
+def format_file_size(size_bytes):
+    """
+    Formatuje rozmiar pliku w czytelny sposób
+    
+    Args:
+        size_bytes: int - rozmiar w bajtach
+    
+    Returns:
+        str: sformatowany rozmiar
+    """
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    elif size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.2f} KB"
+    elif size_bytes < 1024 * 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024):.2f} MB"
+    else:
+        return f"{size_bytes / (1024 * 1024 * 1024):.2f} GB"
+
+# Przykład użycia
+def example_usage():
+    """Przykład użycia funkcji"""
+    
+    # Symulacja danych email (w rzeczywistości użyj swoich eml_bytes)
+    sample_email = b"""From: sender@example.com
+To: recipient@example.com
+Subject: Test Email
+Date: Mon, 25 Aug 2025 10:00:00 +0000
+Content-Type: text/plain
+
+This is a sample email message for testing purposes.
+It contains some text to demonstrate size calculation.
+""" + b"X" * 1000  # Dodajemy trochę danych dla demonstracji
+    
+    print("=== PRZYKŁAD UŻYCIA ===")
+    print()
+    
+    # Prosty sposób - tylko rozmiar w MB
+    size_mb = get_email_size_mb(sample_email)
+    print(f"Rozmiar wiadomości: {size_mb:.4f} MB")
+    print()
+    
+    # Szczegółowe informacje
+    info = get_detailed_email_info(sample_email)
+    
+    if "error" in info:
+        print(f"Błąd: {info['error']}")
+        return
+    
+    print("=== SZCZEGÓŁOWE INFORMACJE ===")
+    print(f"Temat: {info['subject']}")
+    print(f"Od: {info['from']}")
+    print(f"Data: {info['date']}")
+    print()
+    print(f"Całkowity rozmiar: {format_file_size(info['total_size_bytes'])}")
+    print(f"Rozmiar treści: {format_file_size(info['content_size_bytes'])}")
+    print(f"Rozmiar załączników: {format_file_size(info['attachments_size_bytes'])}")
+    print(f"Liczba załączników: {info['attachments_count']}")
+
+# Funkcja do użycia z Twoimi danymi
+def check_your_email_size(eml_bytes):
+    """
+    Sprawdź rozmiar swojej wiadomości email
+    
+    Args:
+        eml_bytes: Twoje dane email w formacie bytes
+    """
+    print("=== ANALIZA TWOJEJ WIADOMOŚCI ===")
+    
+    # Podstawowy rozmiar
+    size_mb = get_email_size_mb(eml_bytes)
+    print(f"Rozmiar wiadomości: {size_mb:.4f} MB ({format_file_size(len(eml_bytes))})")
+    
+    # Szczegółowe informacje
+    info = get_detailed_email_info(eml_bytes)
+    
+    if "error" in info:
+        print(f"Błąd parsowania: {info['error']}")
+        return size_mb
+    
+    print(f"Temat: {info['subject']}")
+    print(f"Liczba załączników: {info['attachments_count']}")
+    
+    if info['attachments_count'] > 0:
+        print(f"Rozmiar załączników: {info['attachments_size_mb']:.4f} MB")
+        print(f"Rozmiar treści: {info['content_size_mb']:.4f} MB")
+    
+    return size_mb
+
+if __name__ == "__main__":
+    example_usage()
+    
+    print("\n" + "="*50)
+    print("INSTRUKCJA UŻYCIA Z TWOIMI DANYMI:")
+    print("="*50)
+    print("""
+# Dla Twoich danych eml_bytes użyj:
+size_mb = get_email_size_mb(eml_bytes)
+print(f"Rozmiar: {size_mb:.4f} MB")
+
+# Lub dla szczegółowych informacji:
+check_your_email_size(eml_bytes)
+""")
