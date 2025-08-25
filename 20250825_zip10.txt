@@ -1,0 +1,67 @@
+import zipfile
+import random
+import string
+import os
+
+def generate_random_string(length):
+    """Generuje losowy ciąg znaków o określonej długości"""
+    characters = string.ascii_letters + string.digits + string.punctuation + ' '
+    return ''.join(random.choice(characters) for _ in range(length))
+
+def create_10mb_zip(filename="random_10mb.zip"):
+    """Tworzy plik ZIP o rozmiarze około 10MB z losowymi danymi"""
+    target_size = 10 * 1024 * 1024  # 10MB w bajtach
+    
+    # Tworzymy plik ZIP
+    with zipfile.ZipFile(filename, 'w', zipfile.ZIP_DEFLATED, compresslevel=1) as zipf:
+        current_size = 0
+        file_counter = 1
+        
+        while current_size < target_size:
+            # Obliczamy ile danych jeszcze potrzebujemy
+            remaining_size = target_size - current_size
+            
+            # Dla każdego pliku w archiwum generujemy około 1MB danych
+            chunk_size = min(1024 * 1024, remaining_size * 2)  # *2 bo kompresja zmniejsza rozmiar
+            
+            # Generujemy losowe dane
+            random_data = generate_random_string(chunk_size)
+            
+            # Nazwa pliku w archiwum
+            file_in_zip = f"random_file_{file_counter}.txt"
+            
+            # Dodajemy plik do archiwum
+            zipf.writestr(file_in_zip, random_data)
+            
+            # Sprawdzamy aktualny rozmiar pliku ZIP
+            current_size = os.path.getsize(filename)
+            
+            print(f"Dodano {file_in_zip}, aktualny rozmiar ZIP: {current_size / (1024*1024):.2f} MB")
+            
+            file_counter += 1
+            
+            # Zabezpieczenie przed nieskończoną pętlą
+            if file_counter > 20:
+                break
+    
+    final_size = os.path.getsize(filename)
+    print(f"\nPlik {filename} został utworzony!")
+    print(f"Końcowy rozmiar: {final_size / (1024*1024):.2f} MB")
+    print(f"Zawiera {file_counter-1} plików z losowymi danymi")
+
+def main():
+    print("Generator pliku ZIP 10MB z losowymi znakami")
+    print("=" * 50)
+    
+    # Możesz zmienić nazwę pliku tutaj
+    output_filename = "random_10mb.zip"
+    
+    try:
+        create_10mb_zip(output_filename)
+        print(f"\n✅ Sukces! Plik '{output_filename}' został utworzony.")
+        
+    except Exception as e:
+        print(f"❌ Wystąpił błąd: {e}")
+
+if __name__ == "__main__":
+    main()
