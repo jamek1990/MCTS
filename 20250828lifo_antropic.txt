@@ -1,0 +1,252 @@
+import csv
+from collections import defaultdict, deque
+from datetime import datetime
+import os
+
+class LIFOTransactionTracker:
+    def __init__(self):
+        self.transactions = []
+        self.dictionary = {}
+        self.initial_transactions = []
+        self.account_balances = defaultdict(deque)  # LIFO stack dla każdego rachunku
+        
+    def load_transactions(self, filename):
+        """Wczytuje transakcje z pliku"""
+        self.transactions = []
+        with open(filename, 'r', encoding='utf-8') as file:
+            reader = csv.reader(file, delimiter='\t')
+            next(reader)  # Pomijamy nagłówek
+            for row in reader:
+                if len(row) >= 4 and row[0].strip():
+                    r1 = row[0].strip()
+                    r2 = row[1].strip()
+                    kwota = float(row[2].strip())
+                    data = row[3].strip()
+                    godzina = row[4].strip() if len(row) > 4 else ""
+                    self.transactions.append({
+                        'r1': r1, 'r2': r2, 'kwota': kwota, 
+                        'data': data, 'godzina': godzina
+                    })
+    
+    def load_dictionary(self, filename):
+        """Wczytuje słownik rachunków i osób"""
+        self.dictionary = {}
+        with open(filename, 'r', encoding='utf-8') as file:
+            reader = csv.reader(file, delimiter='\t')
+            next(reader)  # Pomijamy nagłówek
+            for row in reader:
+                if len(row) >= 2 and row[0].strip():
+                    r = row[0].strip()
+                    name = row[1].strip()
+                    self.dictionary[r] = name
+    
+    def load_initial_transactions(self, filename):
+        """Wczytuje transakcje startowe"""
+        self.initial_transactions = []
+        with open(filename, 'r', encoding='utf-8') as file:
+            reader = csv.reader(file, delimiter='\t')
+            next(reader)  # Pomijamy nagłówek
+            for row in reader:
+                if len(row) >= 3 and row[0].strip():
+                    r = row[0].strip()
+                    kwota = float(row[1].strip())
+                    data = row[2].strip()
+                    godzina = row[3].strip() if len(row) > 3 else ""
+                    self.initial_transactions.append({
+                        'r': r, 'kwota': kwota, 
+                        'data': data, 'godzina': godzina
+                    })
+    
+    def get_datetime_key(self, data, godzina):
+        """Tworzy klucz dla sortowania chronologicznego"""
+        try:
+            return datetime.strptime(f"{data} {godzina}", "%d.%m.%Y %H:%M")
+        except:
+            return datetime.strptime(data, "%d.%m.%Y")
+    
+    def trace_money_lifo(self):
+        """Główny algorytm LIFO do śledzenia pieniędzy"""
+        # Inicjalizacja saldów startowych
+        for init_trans in self.initial_transactions:
+            r = init_trans['r']
+            kwota = init_trans['kwota']
+            # Dodajemy pieniądze do stosu LIFO dla rachunku
+            self.account_balances[r].append({
+                'kwota': kwota,
+                'origin': r,  # skąd pochodzą pieniądze
+                'path': [r]   # ścieżka przepływu
+            })
+        
+        # Sortujemy transakcje chronologicznie
+        sorted_transactions = sorted(
+            self.transactions,
+            key=lambda x: self.get_datetime_key(x['data'], x['godzina'])
+        )
+        
+        # Przetwarzamy każdą transakcję
+        for trans in sorted_transactions:
+            r1, r2, kwota = trans['r1'], trans['r2'], trans['kwota']
+            
+            # Pobieramy pieniądze z rachunku R1 (LIFO)
+            remaining_amount = kwota
+            transferred_money = []
+            
+            while remaining_amount > 0 and self.account_balances[r1]:
+                money_packet = self.account_balances[r1].pop()  # LIFO - bierzemy ostatni
+                
+                if money_packet['kwota'] <= remaining_amount:
+                    # Cały pakiet pieniędzy przechodzi
+                    transferred_money.append({
+                        'kwota': money_packet['kwota'],
+                        'origin': money_packet['origin'],
+                        'path': money_packet['path'] + [r2]
+                    })
+                    remaining_amount -= money_packet['kwota']
+                else:
+                    # Częściowy transfer
+                    transferred_money.append({
+                        'kwota': remaining_amount,
+                        'origin': money_packet['origin'],
+                        'path': money_packet['path'] + [r2]
+                    })
+                    # Zwracamy resztę na stos
+                    money_packet['kwota'] -= remaining_amount
+                    self.account_balances[r1].append(money_packet)
+                    remaining_amount = 0
+            
+            # Dodajemy przeniesione pieniądze do rachunku R2
+            for money in transferred_money:
+                self.account_balances[r2].append(money)
+    
+    def generate_output(self, filename):
+        """Generuje plik wyjściowy"""
+        # Zbieramy wszystkich ludzi ze słownika
+        people = set(self.dictionary.values())
+        people_balances = defaultdict(float)
+        
+        # Analizujemy gdzie są pieniądze z każdej transakcji startowej
+        results = []
+        
+        for init_trans in self.initial_transactions:
+            r = init_trans['r']
+            original_amount = init_trans['kwota']
+            
+            # Resetujemy salda dla tej analizy
+            temp_balances = defaultdict(float)
+            
+            # Sprawdzamy wszystkie pakiety pieniędzy w systemie
+            for account, money_stack in self.account_balances.items():
+                for money_packet in money_stack:
+                    if money_packet['origin'] == r:
+                        # Te pieniądze pochodzą z naszej transakcji startowej
+                        current_account = account
+                        
+                        # Znajdź ostatnią znaną osobę w ścieżce
+                        last_known_person = None
+                        for acc in reversed(money_packet['path']):
+                            if acc in self.dictionary:
+                                last_known_person = self.dictionary[acc]
+                                break
+                        
+                        if last_known_person:
+                            temp_balances[last_known_person] += money_packet['kwota']
+                        else:
+                            # Jeśli nie ma znanej osoby, przypisz do właściciela startowego
+                            if r in self.dictionary:
+                                temp_balances[self.dictionary[r]] += money_packet['kwota']
+            
+            # Dodaj wynik
+            result_row = {
+                'R': r,
+                'KWOTA': original_amount,
+                'Data': init_trans['data'],
+                'Godzina': init_trans['godzina']
+            }
+            
+            for person in people:
+                result_row[person] = temp_balances.get(person, 0)
+            
+            results.append(result_row)
+        
+        # Zapisz wyniki do pliku
+        if results:
+            with open(filename, 'w', encoding='utf-8', newline='') as file:
+                fieldnames = ['R', 'KWOTA', 'Data', 'Godzina'] + sorted(people)
+                writer = csv.DictWriter(file, fieldnames=fieldnames, delimiter='\t')
+                writer.writeheader()
+                writer.writerows(results)
+
+def create_test_cases():
+    """Tworzy przypadki testowe"""
+    
+    # Test Case 1: Podstawowy przykład
+    print("Tworzę Test Case 1...")
+    
+    # transakcje.txt
+    with open('transakcje.txt', 'w', encoding='utf-8') as f:
+        f.write("R1\tR2\tKWOTA\tData\tGodzina\n")
+        f.write("3234\t35455\t3434\t03.05.2024\t12:12\n")
+        f.write("35455\t3555\t1222\t03.05.2024\t12:13\n")
+    
+    # slownik.txt  
+    with open('slownik.txt', 'w', encoding='utf-8') as f:
+        f.write("R\tName\n")
+        f.write("3234\tOla\n")
+        f.write("35455\tKasia\n")
+        f.write("2334\tTomek\n")
+    
+    # transakcje_startowe.txt
+    with open('transakcje_startowe.txt', 'w', encoding='utf-8') as f:
+        f.write("R\tKWOTA\tData\tGodzina\n")
+        f.write("3234\t3434\t03.05.2024\t12:12\n")
+    
+    # Test Case 2: Bardziej złożony
+    print("Tworzę Test Case 2...")
+    
+    with open('transakcje2.txt', 'w', encoding='utf-8') as f:
+        f.write("R1\tR2\tKWOTA\tData\tGodzina\n")
+        f.write("1001\t1002\t500\t01.05.2024\t10:00\n")
+        f.write("1001\t1003\t300\t01.05.2024\t10:30\n")
+        f.write("1002\t1004\t200\t01.05.2024\t11:00\n")
+        f.write("1003\t1002\t150\t01.05.2024\t11:30\n")
+    
+    with open('slownik2.txt', 'w', encoding='utf-8') as f:
+        f.write("R\tName\n")
+        f.write("1001\tAnna\n")
+        f.write("1002\tPiotr\n")
+        f.write("1003\tMaria\n")
+        f.write("1005\tJan\n")
+    
+    with open('transakcje_startowe2.txt', 'w', encoding='utf-8') as f:
+        f.write("R\tKWOTA\tData\tGodzina\n")
+        f.write("1001\t1000\t01.05.2024\t09:00\n")
+        f.write("1005\t500\t01.05.2024\t09:00\n")
+
+def run_test_case(transactions_file, dictionary_file, initial_file, output_file):
+    """Uruchamia test case"""
+    print(f"\nUruchamianie testu: {transactions_file}")
+    
+    tracker = LIFOTransactionTracker()
+    tracker.load_transactions(transactions_file)
+    tracker.load_dictionary(dictionary_file)
+    tracker.load_initial_transactions(initial_file)
+    
+    tracker.trace_money_lifo()
+    tracker.generate_output(output_file)
+    
+    print(f"Wynik zapisany w: {output_file}")
+    
+    # Wyświetl wynik
+    with open(output_file, 'r', encoding='utf-8') as f:
+        print("Zawartość pliku wyjściowego:")
+        print(f.read())
+
+if __name__ == "__main__":
+    # Utwórz przypadki testowe
+    create_test_cases()
+    
+    # Uruchom testy
+    run_test_case('transakcje.txt', 'slownik.txt', 'transakcje_startowe.txt', 'wyjscie1.txt')
+    run_test_case('transakcje2.txt', 'slownik2.txt', 'transakcje_startowe2.txt', 'wyjscie2.txt')
+    
+    print("\nAlgorytm LIFO zakończony pomyślnie!")
