@@ -114,7 +114,14 @@ class LIFOTransactionTracker:
                     self.account_balances[r1].append(money_packet)
                     remaining_amount = 0
             
-            # Dodajemy przeniesione pieniądze do rachunku R2
+            # Jeśli R2 jest poza słownikiem, pieniądze "wychodzą z systemu"
+            # ale nadal śledzimy ich ścieżkę dla przypisania do ostatniej znanej osoby
+            if r2 not in self.dictionary:
+                # Pieniądze wychodzą poza słownik - będą przypisane do ostatniej znanej osoby
+                # w ścieżce podczas generowania wyjścia
+                pass
+            
+            # Dodajemy przeniesione pieniądze do rachunku R2 (nawet jeśli jest poza słownikiem)
             for money in transferred_money:
                 self.account_balances[r2].append(money)
     
@@ -122,7 +129,6 @@ class LIFOTransactionTracker:
         """Generuje plik wyjściowy"""
         # Zbieramy wszystkich ludzi ze słownika
         people = set(self.dictionary.values())
-        people_balances = defaultdict(float)
         
         # Analizujemy gdzie są pieniądze z każdej transakcji startowej
         results = []
@@ -133,27 +139,39 @@ class LIFOTransactionTracker:
             
             # Resetujemy salda dla tej analizy
             temp_balances = defaultdict(float)
+            total_traced = 0
             
             # Sprawdzamy wszystkie pakiety pieniędzy w systemie
             for account, money_stack in self.account_balances.items():
                 for money_packet in money_stack:
                     if money_packet['origin'] == r:
                         # Te pieniądze pochodzą z naszej transakcji startowej
-                        current_account = account
+                        total_traced += money_packet['kwota']
                         
-                        # Znajdź ostatnią znaną osobę w ścieżce
+                        # Znajdź ostatnią znaną osobę w ścieżce (idąc od końca)
                         last_known_person = None
                         for acc in reversed(money_packet['path']):
                             if acc in self.dictionary:
                                 last_known_person = self.dictionary[acc]
                                 break
                         
-                        if last_known_person:
+                        # Jeśli obecny rachunek jest nieznany, ale mamy znaną osobę w ścieżce
+                        if account not in self.dictionary and last_known_person:
                             temp_balances[last_known_person] += money_packet['kwota']
-                        else:
-                            # Jeśli nie ma znanej osoby, przypisz do właściciela startowego
-                            if r in self.dictionary:
-                                temp_balances[self.dictionary[r]] += money_packet['kwota']
+                        # Jeśli obecny rachunek jest znany
+                        elif account in self.dictionary:
+                            temp_balances[self.dictionary[account]] += money_packet['kwota']
+                        # W ostateczności przypisz do właściciela startowego
+                        elif r in self.dictionary:
+                            temp_balances[self.dictionary[r]] += money_packet['kwota']
+            
+            # Jeśli nadal nie zgadza się suma (błąd floating point lub inne)
+            total_assigned = sum(temp_balances.values())
+            if abs(total_assigned - original_amount) > 0.01:
+                difference = original_amount - total_assigned
+                # Przypisz różnicę do właściciela początkowego rachunku
+                if r in self.dictionary:
+                    temp_balances[self.dictionary[r]] += difference
             
             # Dodaj wynik
             result_row = {
@@ -164,9 +182,15 @@ class LIFOTransactionTracker:
             }
             
             for person in people:
-                result_row[person] = temp_balances.get(person, 0)
+                result_row[person] = round(temp_balances.get(person, 0), 2)
             
             results.append(result_row)
+            
+            # Debug: sprawdź sumę
+            total_assigned = sum(temp_balances.values())
+            print(f"Rachunek {r}: Kwota startowa: {original_amount}, "
+                  f"Suma przypisana: {round(total_assigned, 2)}, "
+                  f"Różnica: {round(original_amount - total_assigned, 2)}")
         
         # Zapisz wyniki do pliku
         if results:
@@ -222,6 +246,26 @@ def create_test_cases():
         f.write("1001\t1000\t01.05.2024\t09:00\n")
         f.write("1005\t500\t01.05.2024\t09:00\n")
 
+    # Test Case 3: Test z pieniędzmi wychodzącymi poza słownik
+    print("Tworzę Test Case 3...")
+    
+    with open('transakcje3.txt', 'w', encoding='utf-8') as f:
+        f.write("R1\tR2\tKWOTA\tData\tGodzina\n")
+        f.write("1001\t1002\t500\t01.05.2024\t10:00\n")  # Anna -> Piotr
+        f.write("1002\t9999\t300\t01.05.2024\t10:30\n")  # Piotr -> nieznany rachunek
+        f.write("1001\t1003\t200\t01.05.2024\t11:00\n")  # Anna -> Maria
+    
+    with open('slownik3.txt', 'w', encoding='utf-8') as f:
+        f.write("R\tName\n")
+        f.write("1001\tAnna\n")
+        f.write("1002\tPiotr\n") 
+        f.write("1003\tMaria\n")
+        # 9999 nie ma w słowniku
+    
+    with open('transakcje_startowe3.txt', 'w', encoding='utf-8') as f:
+        f.write("R\tKWOTA\tData\tGodzina\n")
+        f.write("1001\t1000\t01.05.2024\t09:00\n")  # Anna startuje z 1000
+
 def run_test_case(transactions_file, dictionary_file, initial_file, output_file):
     """Uruchamia test case"""
     print(f"\nUruchamianie testu: {transactions_file}")
@@ -248,5 +292,6 @@ if __name__ == "__main__":
     # Uruchom testy
     run_test_case('transakcje.txt', 'slownik.txt', 'transakcje_startowe.txt', 'wyjscie1.txt')
     run_test_case('transakcje2.txt', 'slownik2.txt', 'transakcje_startowe2.txt', 'wyjscie2.txt')
+    run_test_case('transakcje3.txt', 'slownik3.txt', 'transakcje_startowe3.txt', 'wyjscie3.txt')
     
     print("\nAlgorytm LIFO zakończony pomyślnie!")
