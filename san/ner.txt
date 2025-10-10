@@ -1,0 +1,87 @@
+import pandas as pd
+import spacy
+import re # Importujemy moduł do wyrażeń regularnych
+
+# --- Konfiguracja ---
+NAZWA_PLIKU_WEJSCIOWEGO = 'dane.xlsx'
+NAZWA_PLIKU_WYJSCIOWEGO = 'wyniki.xlsx'
+NAZWA_KOLUMNY_Z_OPISAMI = 'description'
+NAZWA_KOLUMNY_NER = 'znalezione_podmioty_nlp' # Zmieniona nazwa dla jasności
+NAZWA_KOLUMNY_REGEX = 'czy_jest_firma_regexp'
+
+# --- Definicja wzorca wyrażenia regularnego ---
+# Lista popularnych form prawnych i słów kluczowych dla firm w Polsce.
+WZORCE_FIRM = [
+    'spółka', 'z o\.o\.', 'sp\. z o\.o\.', 's\. z o\.o\.', 's\.a\.', 'spółka akcyjna',
+    'sp\. j\.', 'spółka jawna', 'sp\. k\.', 'spółka komandytowa', 'sp\. p\.',
+    'spółka partnerska', 's\.c\.', 'spółka cywilna', 'f\.h\.u\.', 'firma handlowo-usługowa',
+    's\.k\.a\.', 'sp\. z o\.o\. sp\.k\.', 'sp\.k\.'
+]
+# Łączymy wzorce w jedno wyrażenie regularne.
+# re.IGNORECASE sprawia, że wyszukiwanie nie zależy od wielkości liter.
+# re.compile() tworzy skompilowany obiekt wzorca, co jest szybsze przy wielu wyszukiwaniach.
+print("Tworzenie wzorca wyrażenia regularnego...")
+regex_pattern = re.compile(r'\b(' + '|'.join(WZORCE_FIRM) + r')\b', re.IGNORECASE)
+
+
+# --- Ładowanie modelu spaCy ---
+print("Ładowanie modelu języka polskiego spaCy...")
+try:
+    nlp = spacy.load("pl_core_news_lg")
+except OSError:
+    print("Błąd: Model 'pl_core_news_lg' nie został znaleziony.")
+    print("Uruchom w terminalu komendę: python -m spacy download pl_core_news_lg")
+    exit()
+
+# --- Funkcje pomocnicze ---
+
+def znajdz_podmioty_nlp(tekst):
+    """Przetwarza tekst i zwraca listę znalezionych osób i organizacji za pomocą NLP."""
+    if not isinstance(tekst, str):
+        return []
+    doc = nlp(tekst)
+    znalezione_podmioty = [
+        ent.text for ent in doc.ents if ent.label_ in ["PERSON", "ORG"]
+    ]
+    return znalezione_podmioty
+
+def sprawdz_firme_regexp(tekst):
+    """Sprawdza za pomocą regex, czy w tekście jest wzmianka o firmie."""
+    if not isinstance(tekst, str):
+        return "Nie"
+    if regex_pattern.search(tekst):
+        return "Tak"
+    else:
+        return "Nie"
+
+# --- Główna część skryptu ---
+try:
+    print(f"Wczytywanie danych z pliku: {NAZWA_PLIKU_WEJSCIOWEGO}")
+    df = pd.read_excel(NAZWA_PLIKU_WEJSCIOWEGO)
+except FileNotFoundError:
+    print(f"Błąd: Plik o nazwie '{NAZWA_PLIKU_WEJSCIOWEGO}' nie istnieje.")
+    print("Upewnij się, że plik znajduje się w tym samym folderze co skrypt.")
+    exit()
+
+# Przetwarzanie każdego wiersza
+print("Przetwarzanie danych i wyszukiwanie podmiotów...")
+wyniki_nlp = []
+wyniki_regex = []
+
+for opis in df[NAZWA_KOLUMNY_Z_OPISAMI]:
+    # 1. Wyszukiwanie za pomocą NLP (spaCy)
+    podmioty_nlp = znajdz_podmioty_nlp(opis)
+    wyniki_nlp.append(", ".join(podmioty_nlp))
+
+    # 2. Wyszukiwanie za pomocą wyrażeń regularnych
+    wyniki_regex.append(sprawdz_firme_regexp(opis))
+
+# Dodawanie nowych kolumn z wynikami do DataFrame
+df[NAZWA_KOLUMNY_NER] = wyniki_nlp
+df[NAZWA_KOLUMNY_REGEX] = wyniki_regex
+
+# Zapisywanie wyników do nowego pliku Excel
+print(f"Zapisywanie wyników do pliku: {NAZWA_PLIKU_WYJSCIOWEGO}")
+df.to_excel(NAZWA_PLIKU_WYJSCIOWEGO, index=False)
+
+print("Gotowe!")
