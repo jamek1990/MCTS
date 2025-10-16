@@ -1,0 +1,90 @@
+from sentence_transformers import SentenceTransformer, util
+
+# Załaduj model
+model = SentenceTransformer('sdadas/st-polish-paraphrase-from-mpnet',trust_remote_code=True)
+
+
+chunk_prefix =""
+substring_prefix =""
+
+# Teksty do porównania
+chunk = chunk_prefix + "Aneksu, tak? Tak, dokładnie. co jest w banku. Ale oni mają przygotowane? Tak. Ja to oczywiście wysyłam do Pani mailowo, żeby Pani mogła się wcześniej też zapoznać, ale doradca w banku będzie miał uszykowany, już wydrukowany ten aneks w oddziale. Dobrze, czy nie będzie jakichś rozszczeń, by bank miał już do mnie żadnych, tak? Żadnych roszczeń, tak. Bo to musi być zapisane w ogodzie, bo różne banki różnie działają. Zresztą większość banków działa tak jak sobie życzy, tak? Tak, ten zapis jest na ugodzie standardowo wpisywany. A jakie są skutki podatkowe? Jeżeli chodzi o warttość umorzenia, to jest ona traktowana jako przchód po stronie klienta i wtedy rzeczywiście bank powinien wystawić PIT11"
+substring = substring_prefix + "bank, roszczeń, pytanie"
+
+# Generowanie embeddingów
+embeddings = [model.encode(substring, prompt_name="document"), model.encode(chunk, normalize_embeddings=True, prompt_name="document")]
+
+# Obliczanie podobieństwa cosinusowego
+similarity = util.cos_sim(embeddings[0], embeddings[1])
+print(f"Podobieństwo: {similarity.item()}")
+
+# Teksty do porównania
+chunk = chunk_prefix + "Aneksu, tak? Tak, dokładnie. co jest w banku. Ale oni mają przygotowane? Tak. Ja to oczywiście wysyłam do Pani mailowo, żeby Pani mogła się wcześniej też zapoznać, ale doradca w banku będzie miał uszykowany, już wydrukowany ten aneks w oddziale. Żadnych roszczeń, tak. Bo to musi być zapisane w ogodzie, bo różne banki różnie działają. Zresztą większość banków działa tak jak sobie życzy, tak? Tak, ten zapis jest na ugodzie standardowo wpisywany. A jakie są skutki podatkowe? Jeżeli chodzi o warttość umorzenia, to jest ona traktowana jako przchód po stronie klienta i wtedy rzeczywiście bank powinien wystawić PIT11"
+substring = substring_prefix + "bank, roszczeń, pytanie"
+
+# Generowanie embeddingów
+embeddings = model.encode([chunk, substring])
+
+# Obliczanie podobieństwa cosinusowego
+similarity = util.cos_sim(embeddings[0], embeddings[1])
+print(f"Podobieństwo: {similarity.item()}")
+# Teksty do porównania
+chunk = chunk_prefix + "Panno święta, co Jasnej bronisz Częstochowy I w Ostrej świecisz Bramie! Ty, co gród zamkowy Nowogródzki ochraniasz z jego wiernym ludem! Jak mnie dziecko do zdrowia powróciłaś cudem (Gdy od płaczącej matki, pod Twoją opiekę Ofiarowany, martwą podniosłem powiekę; I zaraz mogłem pieszo, do Twych świątyń progu Iść za wrócone życie podziękować Bogu), Tak nas powrócisz cudem na Ojczyzny łono. Tymczasem przenoś moją duszę utęsknioną Do tych pagórków leśnych, do tych łąk zielonych, Szeroko nad błękitnym Niemnem rozciągnionych; Do tych pól malowanych zbożem rozmaitem, Wyzłacanych pszenicą, posrebrzanych żytem; Gdzie bursztynowy świerzop, gryka jak śnieg biała, Gdzie panieńskim rumieńcem dzięcielina pała,"
+substring = substring_prefix + "bank, roszczeń, pytanie"
+
+# Generowanie embeddingów
+embeddings = model.encode([chunk, substring])
+
+# Obliczanie podobieństwa cosinusowego
+similarity = util.cos_sim(embeddings[0], embeddings[1])
+print(f"Podobieństwo: {similarity.item()}")
+
+#Alibaba-NLP/gte-multilingual-base
+#Podobieństwo: 0.7353813648223877
+#Podobieństwo: 0.698509931564331
+#Podobieństwo: 0.4229811429977417
+
+#Snowflake/snowflake-arctic-embed-l-v2.0
+#Podobieństwo: 0.5558104515075684
+#Podobieństwo: 0.5155107975006104
+#Podobieństwo: 0.15958720445632935
+
+#jinaai/jina-embeddings-v3
+#Podobieństwo: 0.6474634408950806
+#Podobieństwo: 0.6409484148025513
+#Podobieństwo: 0.33511704206466675
+
+#sdadas/st-polish-paraphrase-from-mpnet
+#Podobieństwo: 0.6977403163909912
+#Podobieństwo: 0.6410850286483765
+#Podobieństwo: 0.12763458490371704
+
+#sentence-transformers/paraphrase-multilingual-mpnet-base-v2
+#Podobieństwo: 0.7023603320121765
+#Podobieństwo: 0.6439233422279358
+#Podobieństwo: 0.18050658702850342
+
+#sdadas/stella-pl-retrieval - STS
+#Podobieństwo: 0.8251190781593323
+#Podobieństwo: 0.7957749366760254
+#Podobieństwo: 0.6355056166648865
+
+#sdadas/stella-pl-retrieval - retrivea
+#Podobieństwo: 0.7576666474342346
+#Podobieństwo: 0.7486225366592407
+#Podobieństwo: 0.5439699292182922
+
+#sdadas/mmlw-retrieval-roberta-large-v2 - retrivea
+#Podobieństwo: 0.8416225910186768
+#Podobieństwo: 0.8323123455047607
+#Podobieństwo: 0.6717426776885986
+
+#sdadas/mmlw-retrieval-roberta-large-v2 - STS
+#Podobieństwo: 0.7922065258026123
+#Podobieństwo: 0.773917019367218
+#Podobieństwo: 0.567036509513855
+
+#sdadas/mmlw-retrieval-roberta-large-v2 - retrivea
+#Podobieństwo: 0.7640174627304077
+#Podobieństwo: 0.7553648948669434
+#Podobieństwo: 0.6271942853927612
