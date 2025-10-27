@@ -1,0 +1,34 @@
+from pydub import AudioSegment
+from pydub.silence import detect_nonsilent
+import numpy as np
+
+def detect_speech_per_channel(file_path, silence_thresh=-40, min_silence_len=500):
+    # Load stereo audio
+    audio = AudioSegment.from_wav(file_path)
+    
+    # Split into channels
+    left_channel = audio.split_to_mono()[0]
+    right_channel = audio.split_to_mono()[1]
+    
+    # Detect non-silent chunks for each channel
+    left_speech = detect_nonsilent(left_channel, silence_thresh=silence_thresh, 
+                                 min_silence_len=min_silence_len)
+    right_speech = detect_nonsilent(right_channel, silence_thresh=silence_thresh, 
+                                  min_silence_len=min_silence_len)
+    
+    # Convert from ms to seconds
+    left_speech_sec = [(start/1000, end/1000) for start, end in left_speech]
+    right_speech_sec = [(start/1000, end/1000) for start, end in right_speech]
+    
+    return left_speech_sec, right_speech_sec
+
+# Usage
+left_times, right_times = detect_speech_per_channel("your_file.wav")
+
+print("Person A (Left) speaks at:")
+for start, end in left_times:
+    print(f"  {start:.2f}s - {end:.2f}s")
+
+print("\nPerson B (Right) speaks at:")
+for start, end in right_times:
+    print(f"  {start:.2f}s - {end:.2f}s")
