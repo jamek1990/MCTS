@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BankAudit AI - Analiza Rozmowy Sprzedażowej</title>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Libraries (Chart.js for graphs, html2pdf for export) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        :root {
+            --primary-color: #003366; /* Bank Navy */
+            --secondary-color: #005b96;
+            --accent-color: #00C853; /* Success Green */
+            --warning-color: #FFAB00;
+            --danger-color: #D32F2F;
+            --bg-color: #F4F6F8;
+            --card-bg: #FFFFFF;
+            --text-main: #1a1a1a;
+            --text-muted: #6c757d;
+            --border-color: #e0e0e0;
+            --chat-agent-bg: #E3F2FD;
+            --chat-client-bg: #F5F5F5;
+            --font-family: 'Inter', sans-serif;
+            --transition-speed: 0.3s;
+        }
+
+        [data-theme="dark"] {
+            --primary-color: #1a2639;
+            --bg-color: #121212;
+            --card-bg: #1E1E1E;
+            --text-main: #e0e0e0;
+            --text-muted: #b0b0b0;
+            --border-color: #333;
+            --chat-agent-bg: #003366;
+            --chat-client-bg: #2C2C2C;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: var(--font-family); background-color: var(--bg-color); color: var(--text-main); transition: background-color var(--transition-speed), color var(--transition-speed); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* HEADER */
+        header {
+            background-color: var(--card-bg);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.8rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .header-left { display: flex; align-items: center; gap: 1rem; }
+        .logo { font-weight: 700; font-size: 1.2rem; color: var(--primary-color); display: flex; align-items: center; gap: 0.5rem; }
+        [data-theme="dark"] .logo { color: #fff; }
+        .logo span { color: var(--accent-color); }
+        
+        .meta-badge {
+            font-size: 0.75rem; padding: 0.25rem 0.6rem; border-radius: 12px; background: var(--bg-color); border: 1px solid var(--border-color);
+        }
+
+        .header-right { display: flex; gap: 0.8rem; }
+        
+        .btn {
+            padding: 0.5rem 1rem; border: none; border-radius: 6px; font-size: 0.85rem; cursor: pointer; font-weight: 500; transition: all 0.2s; display: flex; align-items: center; gap: 0.4rem;
+        }
+        .btn-primary { background-color: var(--primary-color); color: white; }
+        .btn-primary:hover { background-color: var(--secondary-color); }
+        .btn-outline { background-color: transparent; border: 1px solid var(--border-color); color: var(--text-main); }
+        .btn-outline:hover { background-color: var(--bg-color); }
+
+        /* MAIN LAYOUT */
+        .container {
+            display: flex;
+            flex: 1;
+            height: calc(100vh - 60px); /* minus header */
+            overflow: hidden;
+        }
+
+        /* LEFT COLUMN - TRANSCRIPT */
+        .transcript-section {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-color);
+            background-color: var(--bg-color);
+            position: relative;
+        }
+
+        .transcript-controls {
+            padding: 1rem;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .search-bar {
+            position: relative;
+            width: 100%;
+            max-width: 300px;
+        }
+        .search-bar input {
+            width: 100%; padding: 0.5rem 0.5rem 0.5rem 2rem; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-main);
+        }
+        .search-icon { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); font-size: 0.8rem; color: var(--text-muted); }
+
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            scroll-behavior: smooth;
+        }
+
+        .messagebox {
+            max-width: 80%;
+            padding: 1rem;
+            border-radius: 8px;
+            position: relative;
+            animation: fadeIn 0.3s ease-in-out;
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+        
+        .messagebox:hover { border-color: var(--border-color); box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .messagebox.active { border-left: 4px solid var(--accent-color); background-color: rgba(0, 200, 83, 0.1) !important; }
+
+        .msg-agent { align-self: flex-end; background-color: var(--chat-agent-bg); border-bottom-right-radius: 0; }
+        .msg-client { align-self: flex-start; background-color: var(--chat-client-bg); border-bottom-left-radius: 0; }
+
+        .msg-header { display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 0.4rem; color: var(--text-muted); }
+        .msg-text { font-size: 0.95rem; line-height: 1.5; }
+        .msg-text mark { background-color: yellow; color: black; padding: 0 2px; }
+
+        .tag {
+            display: inline-block; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; margin-top: 5px; margin-right: 4px; font-weight: 600;
+        }
+        .tag-positive { background: #e8f5e9; color: #2e7d32; }
+        .tag-negative { background: #ffebee; color: #c62828; }
+        .tag-info { background: #e3f2fd; color: #1565c0; }
+
+        /* AUDIO PLAYER STICKY */
+        .audio-player {
+            background: var(--card-bg);
+            padding: 1rem;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .progress-container { flex: 1; height: 6px; background: var(--bg-color); border-radius: 3px; cursor: pointer; position: relative; }
+        .progress-bar { height: 100%; background: var(--primary-color); width: 0%; border-radius: 3px; transition: width 0.1s linear; }
+        .play-btn { width: 40px; height: 40px; border-radius: 50%; background: var(--primary-color); color: white; display: flex; justify-content: center; align-items: center; cursor: pointer; }
+
+        /* RIGHT COLUMN - ANALYSIS */
+        .analysis-section {
+            flex: 1; /* 33% width approx */
+            min-width: 380px;
+            background-color: var(--card-bg);
+            overflow-y: auto;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .card {
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        .card-title { font-size: 0.9rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.8rem; display: flex; justify-content: space-between; }
+
+        /* Summary Typewriter */
+        #summary-text { font-size: 0.9rem; line-height: 1.6; }
+        
+        /* Compliance List */
+        .compliance-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; margin-bottom: 0.5rem; }
+        .check-icon { width: 16px; height: 16px; border-radius: 50%; display: inline-flex; justify-content: center; align-items: center; color: white; font-size: 10px; }
+        .check-ok { background: var(--accent-color); }
+        .check-fail { background: var(--danger-color); }
+        
+        /* Key Moments Timeline */
+        .moment-item { 
+            padding-left: 1rem; border-left: 2px solid var(--border-color); margin-bottom: 0.8rem; position: relative; cursor: pointer; transition: all 0.2s;
+        }
+        .moment-item:hover { border-left-color: var(--primary-color); padding-left: 1.2rem; }
+        .moment-item::before { content:''; position: absolute; left: -5px; top: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); }
+        .moment-time { font-size: 0.75rem; color: var(--text-muted); }
+        .moment-desc { font-size: 0.85rem; font-weight: 500; }
+
+        /* Score Chart */
+        .score-container { position: relative; height: 200px; width: 100%; }
+        .overall-score { font-size: 2rem; font-weight: 700; color: var(--primary-color); text-align: center; margin-bottom: 10px; }
+        [data-theme="dark"] .overall-score { color: var(--accent-color); }
+
+        /* Footer */
+        .footer-info { font-size: 0.7rem; text-align: center; color: var(--text-muted); margin-top: 2rem; }
+
+        /* Animations */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #999; }
+    </style>
+</head>
+<body>
+
+    <!-- HEADER -->
+    <header>
+        <div class="header-left">
+            <div class="logo">🏦 Bank<span>Audit AI</span></div>
+            <div style="border-left: 1px solid var(--border-color); height: 20px; margin: 0 10px;"></div>
+            <div id="meta-info" class="meta-info" style="display:flex; gap:10px;">
+                <!-- Metadane wstrzyknięte przez JS -->
+            </div>
+        </div>
+        <div class="header-right">
+            <input type="file" id="jsonUpload" accept=".json" style="display:none">
+            <button class="btn btn-outline" onclick="document.getElementById('jsonUpload').click()">📂 Wczytaj plik</button>
+            <button class="btn btn-outline" onclick="exportToPDF()">📄 PDF</button>
+            <button class="btn btn-primary" onclick="toggleTheme()">🌗 Tryb</button>
+        </div>
+    </header>
+
+    <!-- MAIN CONTAINER -->
+    <div class="container">
+        
+        <!-- TRANSCRIPT SECTION -->
+        <section class="transcript-section">
+            <div class="transcript-controls">
+                <div class="search-bar">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="searchInput" placeholder="Szukaj w rozmowie..." onkeyup="filterTranscript()">
+                </div>
+                <div style="font-size: 0.8rem; color: var(--text-muted);">
+                    Liczba wypowiedzi: <span id="msg-count">0</span>
+                </div>
+            </div>
+
+            <div class="chat-container" id="chat-view">
+                <!-- Wypowiedzi będą tutaj -->
+            </div>
+
+            <div class="audio-player">
+                <div class="play-btn" onclick="togglePlay()" id="playBtn">▶</div>
+                <div style="font-size: 0.8rem; width: 40px;" id="currTime">00:00</div>
+                <div class="progress-container" id="progressContainer" onclick="seekAudio(event)">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+                <div style="font-size: 0.8rem; width: 40px;" id="totalTime">00:00</div>
+            </div>
+        </section>
+
+        <!-- ANALYSIS SIDEBAR -->
+        <aside class="analysis-section" id="analysis-panel">
+            
+            <div class="card">
+                <div class="card-title">Podsumowanie AI</div>
+                <div id="summary-text"></div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Jakość Rozmowy <span id="score-val" class="overall-score" style="font-size:1.2rem; margin:0;"></span></div>
+                <div class="score-container">
+                    <canvas id="scoreChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Compliance Checklist <span id="compliance-percent" style="color:var(--accent-color)"></span></div>
+                <div id="compliance-list">
+                    <!-- Lista compliance -->
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Kluczowe Momenty</div>
+                <div id="key-moments">
+                    <!-- Oś czasu -->
+                </div>
+            </div>
+
+            <div class="card" style="border-color: var(--danger-color);">
+                <div class="card-title" style="color: var(--danger-color);">Ryzyka i Czerwone Flagi 🚩</div>
+                <div id="risks-list" style="font-size: 0.85rem;">
+                </div>
+            </div>
+
+            <div class="footer-info">
+                Wersja Demo v1.0.2 | Generowano lokalnie
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        // --- DANE PRZYKŁADOWE (DEMO DATA) ---
+        const defaultData = {
+            metadata: {
+                date: "2023-11-20",
+                time: "10:42",
+                agent: "Anna Nowak",
+                client: "Jan Kowalski",
+                product: "Kredyt Gotówkowy",
+                duration: 145, // sekundy
+                result: "Sukces - Wstępna decyzja"
+            },
+            transcript: [
+                { id: 1, speaker: "agent", text: "Dzień dobry, tu Bank ABC, Anna Nowak. Czy rozmawiam z Panem Janem Kowalskim?", start: 0, end: 5, tags: ["powitanie"] },
+                { id: 2, speaker: "client", text: "Dzień dobry, tak, przy telefonie.", start: 5, end: 8, tags: [] },
+                { id: 3, speaker: "agent", text: "Panie Janie, dzwonię do Pana w związku z przygotowaną ofertą specjalną kredytu gotówkowego. Czy ma Pan chwilę?", start: 8, end: 15, tags: ["cel_kontaktu"] },
+                { id: 4, speaker: "client", text: "W sumie tak, akurat myślałem o remoncie.", start: 15, end: 19, tags: ["potrzeba"] },
+                { id: 5, speaker: "agent", text: "Świetnie się składa. Nasza oferta to 20 tysięcy złotych bez prowizji. To mogłoby pokryć koszty remontu, prawda?", start: 19, end: 28, tags: ["prezentacja", "korzyść"] },
+                { id: 6, speaker: "client", text: "Brzmi nieźle, ale jakie jest oprocentowanie?", start: 28, end: 32, tags: ["obiekcja"] },
+                { id: 7, speaker: "agent", text: "RRSO wynosi 10,5%, co jest jedną z najniższych stawek na rynku w tym miesiącu. Rata wyniesie około 450 zł.", start: 32, end: 42, tags: ["argumentacja"] },
+                { id: 8, speaker: "client", text: "To trochę dużo miesięcznie...", start: 42, end: 45, tags: ["obiekcja_cena"] },
+                { id: 9, speaker: "agent", text: "Rozumiem. Możemy wydłużyć okres kredytowania do 60 miesięcy, wtedy rata spadnie do 380 zł. Czy taka kwota jest bardziej komfortowa?", start: 45, end: 55, tags: ["negocjacje", "empatia"] },
+                { id: 10, speaker: "client", text: "Tak, 380 zł brzmi rozsądnie.", start: 55, end: 58, tags: ["akceptacja"] },
+                { id: 11, speaker: "agent", text: "Cieszę się. Muszę Pana jeszcze poinformować o ryzyku zmiany stóp procentowych oraz o możliwości odstąpienia od umowy w ciągu 14 dni.", start: 58, end: 68, tags: ["compliance", "wymogi_prawne"] },
+                { id: 12, speaker: "client", text: "Dobrze, rozumiem.", start: 68, end: 70, tags: [] },
+                { id: 13, speaker: "agent", text: "Wspaniale. Prześlę dokumenty na maila. Dziękuję za rozmowę i życzę udanego remontu!", start: 70, end: 78, tags: ["zamknięcie"] }
+            ],
+            analysis: {
+                summary: "Rozmowa przebiegła wzorcowo. Agentka prawidłowo zidentyfikowała potrzebę klienta (remont) i dostosowała ofertę, zbijając obiekcję dotyczącą wysokości raty poprzez wydłużenie okresu kredytowania. Wypełniono obowiązki informacyjne.",
+                score: 92,
+                details_score: [9, 10, 8, 9, 10], // Relacja, Badanie potrzeb, Oferta, Obiekcje, Zamknięcie
+                compliance: [
+                    { text: "Weryfikacja tożsamości klienta", status: true, time: 0 },
+                    { text: "Informacja o nagrywaniu", status: false, time: null }, // Celowy błąd
+                    { text: "Przedstawienie RRSO", status: true, time: 32 },
+                    { text: "Informacja o ryzyku", status: true, time: 58 },
+                    { text: "Prawo do odstąpienia", status: true, time: 58 }
+                ],
+                risks: [
+                    { text: "Brak formułki o RODO/nagrywaniu na początku rozmowy.", level: "medium" }
+                ],
+                moments: [
+                    { label: "Powitanie", time: 0 },
+                    { label: "Badanie potrzeb", time: 15 },
+                    { label: "Oferta", time: 19 },
+                    { label: "Negocjacja raty", time: 45 },
+                    { label: "Klauzule prawne", time: 58 },
+                    { label: "Zamknięcie", time: 70 }
+                ]
+            }
+        };
+
+        // --- LOGIKA APLIKACJI ---
+        
+        let currentData = defaultData;
+        let isPlaying = false;
+        let currentTime = 0;
+        let timerInterval;
+        let chartInstance = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData(defaultData);
+            
+            // File Upload Handler
+            document.getElementById('jsonUpload').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const json = JSON.parse(e.target.result);
+                        loadData(json);
+                    } catch (err) {
+                        alert("Błąd formatu pliku JSON");
+                    }
+                };
+                reader.readAsText(file);
+            });
+        });
+
+        function loadData(data) {
+            currentData = data;
+            renderHeader(data.metadata);
+            renderTranscript(data.transcript);
+            renderAnalysis(data.analysis);
+            initChart(data.analysis.details_score);
+            resetPlayer();
+        }
+
+        function renderHeader(meta) {
+            const container = document.getElementById('meta-info');
+            container.innerHTML = `
+                <span class="meta-badge">👤 ${meta.agent}</span>
+                <span class="meta-badge">📞 ${meta.client}</span>
+                <span class="meta-badge" style="background:var(--primary-color); color:white">${meta.product}</span>
+                <span class="meta-badge" style="border-color:${meta.result.includes('Sukces') ? 'var(--accent-color)' : 'var(--warning-color)'}">${meta.result}</span>
+            `;
+        }
+
+        function renderTranscript(transcript) {
+            const container = document.getElementById('chat-view');
+            container.innerHTML = '';
+            document.getElementById('msg-count').innerText = transcript.length;
+
+            transcript.forEach((msg) => {
+                const div = document.createElement('div');
+                div.className = `messagebox ${msg.speaker === 'agent' ? 'msg-agent' : 'msg-client'}`;
+                div.id = `msg-${msg.id}`;
+                div.onclick = () => seekTo(msg.start);
+                div.dataset.start = msg.start;
+                div.dataset.end = msg.end;
+
+                let tagsHtml = '';
+                if (msg.tags) {
+                    msg.tags.forEach(tag => {
+                        let colorClass = 'tag-info';
+                        if(['obiekcja', 'obiekcja_cena'].includes(tag)) colorClass = 'tag-negative';
+                        if(['zamknięcie', 'sukces', 'korzyść'].includes(tag)) colorClass = 'tag-positive';
+                        tagsHtml += `<span class="tag ${colorClass}">#${tag}</span>`;
+                    });
+                }
+
+                div.innerHTML = `
+                    <div class="msg-header">
+                        <span>${msg.speaker === 'agent' ? 'Agent' : 'Klient'}</span>
+                        <span>${formatTime(msg.start)}</span>
+                    </div>
+                    <div class="msg-text">${msg.text}</div>
+                    <div>${tagsHtml}</div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function renderAnalysis(analysis) {
+            // Summary with Typewriter effect
+            const summaryEl = document.getElementById('summary-text');
+            summaryEl.innerHTML = '';
+            let i = 0;
+            const txt = analysis.summary;
+            const speed = 15; 
+            
+            function typeWriter() {
+                if (i < txt.length) {
+                    summaryEl.innerHTML += txt.charAt(i);
+                    i++;
+                    setTimeout(typeWriter, speed);
+                }
+            }
+            typeWriter();
+
+            // Compliance
+            const complList = document.getElementById('compliance-list');
+            complList.innerHTML = '';
+            let okCount = 0;
+            analysis.compliance.forEach(item => {
+                if(item.status) okCount++;
+                complList.innerHTML += `
+                    <div class="compliance-item">
+                        <div class="check-icon ${item.status ? 'check-ok' : 'check-fail'}">
+                            ${item.status ? '✔' : '✖'}
+                        </div>
+                        <div style="flex:1">${item.text}</div>
+                        ${item.time !== null ? `<a href="#" onclick="seekTo(${item.time}); return false;" style="font-size:0.7rem; color:var(--primary-color)">Pokaż</a>` : ''}
+                    </div>
+                `;
+            });
+            const percent = Math.round((okCount / analysis.compliance.length) * 100);
+            document.getElementById('compliance-percent').innerText = `${percent}%`;
+
+            // Score
+            document.getElementById('score-val').innerText = `${analysis.score}/100`;
+
+            // Risks
+            const risksDiv = document.getElementById('risks-list');
+            risksDiv.innerHTML = '';
+            if(analysis.risks.length === 0) {
+                risksDiv.innerHTML = '<div style="color:var(--accent-color)">Brak wykrytych ryzyk.</div>';
+            } else {
+                analysis.risks.forEach(r => {
+                    risksDiv.innerHTML += `<div style="margin-bottom:5px;">• ${r.text} <span style="font-weight:bold; font-size:0.7rem; text-transform:uppercase;">(${r.level})</span></div>`;
+                });
+            }
+
+            // Moments
+            const momentsDiv = document.getElementById('key-moments');
+            momentsDiv.innerHTML = '';
+            analysis.moments.forEach(m => {
+                momentsDiv.innerHTML += `
+                    <div class="moment-item" onclick="seekTo(${m.time})">
+                        <div class="moment-time">${formatTime(m.time)}</div>
+                        <div class="moment-desc">${m.label}</div>
+                    </div>
+                `;
+            });
+        }
+
+        function initChart(dataPoints) {
+            const ctx = document.getElementById('scoreChart').getContext('2d');
+            if(chartInstance) chartInstance.destroy();
+
+            const isDark = document.body.getAttribute('data-theme') === 'dark';
+            const textColor = isDark ? '#e0e0e0' : '#333';
+            const gridColor = isDark ? '#444' : '#e0e0e0';
+
+            chartInstance = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['Budowanie Relacji', 'Badanie Potrzeb', 'Prezentacja Oferty', 'Zbijanie Obiekcji', 'Zamknięcie'],
+                    datasets: [{
+                        label: 'Ocena Agenta',
+                        data: dataPoints,
+                        backgroundColor: 'rgba(0, 51, 102, 0.2)',
+                        borderColor: '#003366',
+                        pointBackgroundColor: '#00C853',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            angleLines: { color: gridColor },
+                            grid: { color: gridColor },
+                            pointLabels: { color: textColor, font: {size: 10} },
+                            suggestedMin: 0,
+                            suggestedMax: 10
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+
+        // --- AUDIO / PLAYER SIMULATION ---
+
+        function resetPlayer() {
+            isPlaying = false;
+            currentTime = 0;
+            clearInterval(timerInterval);
+            document.getElementById('playBtn').innerText = "▶";
+            document.getElementById('progressBar').style.width = "0%";
+            document.getElementById('currTime').innerText = "00:00";
+            document.getElementById('totalTime').innerText = formatTime(currentData.metadata.duration);
+            updateActiveTranscript();
+        }
+
+        function togglePlay() {
+            if(isPlaying) {
+                isPlaying = false;
+                clearInterval(timerInterval);
+                document.getElementById('playBtn').innerText = "▶";
+            } else {
+                isPlaying = true;
+                document.getElementById('playBtn').innerText = "⏸";
+                timerInterval = setInterval(() => {
+                    currentTime += 0.5; // speed factor
+                    if(currentTime >= currentData.metadata.duration) {
+                        resetPlayer();
+                        return;
+                    }
+                    updatePlayerUI();
+                    updateActiveTranscript();
+                }, 500);
+            }
+        }
+
+        function seekTo(time) {
+            currentTime = time;
+            updatePlayerUI();
+            updateActiveTranscript();
+            if(!isPlaying) togglePlay(); // Auto play on click
+        }
+
+        function seekAudio(e) {
+            const container = document.getElementById('progressContainer');
+            const rect = container.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const percent = x / rect.width;
+            currentTime = percent * currentData.metadata.duration;
+            updatePlayerUI();
+            updateActiveTranscript();
+        }
+
+        function updatePlayerUI() {
+            const percent = (currentTime / currentData.metadata.duration) * 100;
+            document.getElementById('progressBar').style.width = `${percent}%`;
+            document.getElementById('currTime').innerText = formatTime(currentTime);
+        }
+
+        function updateActiveTranscript() {
+            // Remove active class
+            document.querySelectorAll('.messagebox').forEach(box => box.classList.remove('active'));
+            
+            // Find current segment
+            const currentSeg = currentData.transcript.find(s => currentTime >= s.start && currentTime <= s.end);
+            if(currentSeg) {
+                const el = document.getElementById(`msg-${currentSeg.id}`);
+                if(el) {
+                    el.classList.add('active');
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+        }
+
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            return `${m < 10 ? '0'+m : m}:${s < 10 ? '0'+s : s}`;
+        }
+
+        // --- UTILS ---
+
+        function filterTranscript() {
+            const term = document.getElementById('searchInput').value.toLowerCase();
+            const messages = document.querySelectorAll('.messagebox');
+            messages.forEach(msg => {
+                const text = msg.querySelector('.msg-text').innerText.toLowerCase();
+                if(text.includes(term)) {
+                    msg.style.display = "block";
+                    // Simple highlight logic could go here (replace innerHTML)
+                } else {
+                    msg.style.display = "none";
+                }
+            });
+        }
+
+        function toggleTheme() {
+            const body = document.body;
+            if(body.getAttribute('data-theme') === 'dark') {
+                body.removeAttribute('data-theme');
+                if(chartInstance) { 
+                    chartInstance.data.datasets[0].borderColor = '#003366';
+                    chartInstance.data.datasets[0].backgroundColor = 'rgba(0, 51, 102, 0.2)';
+                    chartInstance.update();
+                }
+            } else {
+                body.setAttribute('data-theme', 'dark');
+                if(chartInstance) { 
+                    chartInstance.data.datasets[0].borderColor = '#00C853';
+                    chartInstance.data.datasets[0].backgroundColor = 'rgba(0, 200, 83, 0.2)';
+                    chartInstance.update();
+                }
+            }
+            // Re-init chart to pick up grid colors (simplified)
+            initChart(currentData.analysis.details_score);
+        }
+
+        function exportToPDF() {
+            const element = document.getElementById('analysis-panel');
+            const opt = {
+                margin: 0.5,
+                filename: `Raport_${currentData.metadata.client}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+            };
+            
+            // Tymczasowo zmień tło na jasne dla PDF jeśli jest dark mode
+            const wasDark = document.body.getAttribute('data-theme') === 'dark';
+            if(wasDark) toggleTheme();
+
+            html2pdf().set(opt).from(element).save().then(() => {
+                if(wasDark) toggleTheme();
+            });
+        }
+    </script>
+</body>
+</html>
