@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GenAI w Pionie Zarządzania Ryzykiem – Strategia dla Zarządu</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=IBM+Plex+Mono:wght@300;400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0d1117;
+    --paper: #f7f4ee;
+    --gold: #c9a84c;
+    --gold-light: #e8d5a3;
+    --red: #c0392b;
+    --green: #1a6b3c;
+    --blue: #1a3a6b;
+    --blue-light: #d6e4f7;
+    --mid: #6b7280;
+    --rule: #d4cfc4;
+    --mono: 'IBM Plex Mono', monospace;
+    --serif: 'Playfair Display', serif;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  /* ---- COVER ---- */
+  .cover {
+    min-height: 100vh;
+    background: var(--ink);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 80px;
+    position: relative;
+    overflow: hidden;
+  }
+  .cover::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--gold) 0%, var(--gold-light) 50%, var(--gold) 100%);
+  }
+  .cover-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(201,168,76,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(201,168,76,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  .cover-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 32px;
+  }
+  .cover h1 {
+    font-family: var(--serif);
+    font-size: clamp(38px, 5vw, 64px);
+    font-weight: 900;
+    color: #fff;
+    line-height: 1.1;
+    max-width: 860px;
+    margin-bottom: 24px;
+  }
+  .cover h1 em {
+    font-style: normal;
+    color: var(--gold);
+  }
+  .cover-sub {
+    font-size: 16px;
+    color: #9ca3af;
+    max-width: 600px;
+    margin-bottom: 64px;
+    line-height: 1.7;
+  }
+  .cover-meta {
+    display: flex;
+    gap: 48px;
+    border-top: 1px solid rgba(201,168,76,0.3);
+    padding-top: 32px;
+  }
+  .meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .meta-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: var(--gold);
+    text-transform: uppercase;
+  }
+  .meta-value {
+    font-size: 14px;
+    color: #e5e7eb;
+    font-weight: 500;
+  }
+
+  /* ---- LAYOUT ---- */
+  .page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 80px 60px;
+  }
+  .page + .page { border-top: 1px solid var(--rule); }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 8px;
+  }
+  h2 {
+    font-family: var(--serif);
+    font-size: clamp(28px, 3vw, 42px);
+    font-weight: 700;
+    line-height: 1.15;
+    margin-bottom: 40px;
+    color: var(--ink);
+  }
+  h3 {
+    font-family: var(--serif);
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: var(--ink);
+  }
+  p { color: #374151; margin-bottom: 16px; }
+  p:last-child { margin-bottom: 0; }
+
+  /* ---- INTRO CARDS ---- */
+  .intro-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    margin: 48px 0;
+  }
+  .intro-card {
+    background: var(--ink);
+    color: #fff;
+    padding: 28px 24px;
+    border-radius: 2px;
+    position: relative;
+    overflow: hidden;
+  }
+  .intro-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0;
+    width: 100%; height: 3px;
+    background: var(--gold);
+  }
+  .intro-card-icon { font-size: 28px; margin-bottom: 16px; display: block; }
+  .intro-card-title { font-family: var(--serif); font-size: 15px; font-weight: 700; margin-bottom: 8px; color: #fff; }
+  .intro-card-text { font-size: 12px; color: #9ca3af; line-height: 1.6; }
+
+  /* ---- DOMAIN SECTIONS ---- */
+  .domain-block {
+    margin-bottom: 60px;
+    padding-bottom: 60px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .domain-block:last-child { border-bottom: none; margin-bottom: 0; }
+
+  .domain-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 24px;
+    margin-bottom: 32px;
+  }
+  .domain-badge {
+    background: var(--ink);
+    color: var(--gold);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    padding: 6px 14px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-top: 6px;
+  }
+  .domain-header-text h3 { margin-bottom: 6px; font-size: 24px; }
+  .domain-header-text p { font-size: 13px; color: var(--mid); margin: 0; }
+
+  .use-case-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 24px;
+  }
+  .use-case {
+    border: 1px solid var(--rule);
+    padding: 20px;
+    border-radius: 2px;
+    background: #fff;
+    position: relative;
+  }
+  .use-case::before {
+    content: attr(data-tag);
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    position: absolute;
+    top: 12px; right: 12px;
+    padding: 3px 8px;
+    border-radius: 1px;
+  }
+  .use-case[data-priority="WYSOKI"]::before { background: #fef3c7; color: #92400e; }
+  .use-case[data-priority="ŚREDNI"]::before { background: #dbeafe; color: #1e40af; }
+  .use-case[data-priority="NISKI"]::before { background: #f3f4f6; color: #6b7280; }
+
+  .use-case-title {
+    font-weight: 600;
+    font-size: 13px;
+    margin-bottom: 8px;
+    padding-right: 60px;
+  }
+  .use-case-desc { font-size: 12px; color: var(--mid); line-height: 1.6; margin-bottom: 12px; }
+  .use-case-saving {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--green);
+    font-weight: 500;
+  }
+
+  /* ---- STRATEGY ROADMAP ---- */
+  .roadmap {
+    position: relative;
+    margin: 40px 0;
+  }
+  .roadmap-track {
+    position: absolute;
+    top: 28px; left: 28px; right: 28px;
+    height: 2px;
+    background: var(--rule);
+    z-index: 0;
+  }
+  .roadmap-track-fill {
+    height: 100%;
+    width: 45%;
+    background: linear-gradient(90deg, var(--gold) 0%, var(--gold-light) 100%);
+  }
+  .roadmap-phases {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    position: relative;
+    z-index: 1;
+  }
+  .phase {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  .phase-dot {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: var(--ink);
+    border: 3px solid var(--gold);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 18px;
+    color: var(--gold);
+    font-weight: 500;
+    margin-bottom: 20px;
+  }
+  .phase-dot.active { background: var(--gold); color: var(--ink); }
+  .phase-timeframe {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .phase-title {
+    font-family: var(--serif);
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+  .phase-items {
+    list-style: none;
+    font-size: 12px;
+    color: var(--mid);
+    line-height: 1.8;
+    text-align: left;
+    max-width: 220px;
+  }
+  .phase-items li::before {
+    content: '→ ';
+    color: var(--gold);
+    font-family: var(--mono);
+  }
+
+  /* ---- PRIORITY TABLE ---- */
+  .priority-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 24px;
+    font-size: 12.5px;
+  }
+  .priority-table thead tr {
+    background: var(--ink);
+    color: #fff;
+  }
+  .priority-table thead th {
+    padding: 14px 16px;
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    font-weight: 400;
+    color: var(--gold-light);
+  }
+  .priority-table thead th:first-child { border-left: 3px solid var(--gold); }
+  .priority-table tbody tr {
+    border-bottom: 1px solid var(--rule);
+    transition: background 0.15s;
+  }
+  .priority-table tbody tr:hover { background: #fafaf8; }
+  .priority-table td {
+    padding: 13px 16px;
+    vertical-align: top;
+    line-height: 1.5;
+  }
+  .priority-table td:first-child { border-left: 3px solid transparent; }
+  .priority-table tr[data-p="P1"] td:first-child { border-left-color: var(--red); }
+  .priority-table tr[data-p="P2"] td:first-child { border-left-color: var(--gold); }
+  .priority-table tr[data-p="P3"] td:first-child { border-left-color: var(--blue); }
+
+  .pill {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 100px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    font-weight: 500;
+  }
+  .pill-p1 { background: #fee2e2; color: var(--red); }
+  .pill-p2 { background: #fef9ec; color: #92400e; }
+  .pill-p3 { background: var(--blue-light); color: var(--blue); }
+  .pill-high { background: #dcfce7; color: #166534; }
+  .pill-mid  { background: #dbeafe; color: #1e40af; }
+  .pill-low  { background: #f3f4f6; color: #4b5563; }
+
+  .table-initiative { font-weight: 600; color: var(--ink); display: block; }
+  .table-sub { font-size: 11px; color: var(--mid); display: block; margin-top: 2px; }
+
+  /* ---- SAVINGS BOX ---- */
+  .savings-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    margin: 40px 0;
+  }
+  .savings-card {
+    border: 1px solid var(--rule);
+    padding: 24px 20px;
+    background: #fff;
+    text-align: center;
+  }
+  .savings-card-area {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--mid);
+    margin-bottom: 12px;
+  }
+  .savings-card-value {
+    font-family: var(--serif);
+    font-size: 32px;
+    font-weight: 900;
+    color: var(--green);
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .savings-card-desc {
+    font-size: 11px;
+    color: var(--mid);
+    line-height: 1.5;
+  }
+
+  /* ---- RISK CALLOUT ---- */
+  .callout {
+    border-left: 4px solid var(--gold);
+    background: #fffdf5;
+    padding: 20px 24px;
+    margin: 32px 0;
+    font-size: 13px;
+    line-height: 1.7;
+    color: #374151;
+  }
+  .callout strong { color: var(--ink); }
+
+  /* ---- FOOTER ---- */
+  .doc-footer {
+    background: var(--ink);
+    padding: 40px 80px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .doc-footer-left {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+  }
+  .doc-footer-right {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: #4b5563;
+    text-align: right;
+    line-height: 1.8;
+  }
+
+  @media (max-width: 768px) {
+    .cover { padding: 40px 32px; }
+    .page { padding: 48px 32px; }
+    .intro-grid, .savings-grid { grid-template-columns: 1fr 1fr; }
+    .use-case-grid { grid-template-columns: 1fr; }
+    .roadmap-phases { grid-template-columns: 1fr; }
+    .roadmap-track { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <div class="cover-grid"></div>
+  <div class="cover-label">MATERIAŁ DLA ZARZĄDU · POUFNE · Q2 2025</div>
+  <h1>Generatywna AI<br>w Pionie <em>Zarządzania</em><br>Ryzykiem</h1>
+  <p class="cover-sub">Strategia transformacji operacyjnej obejmująca proces kredytowy, AML, wykrywanie fraudów oraz kontrolę wewnętrzną — z uwzględnieniem celu redukcji kosztów osobowych.</p>
+  <div class="cover-meta">
+    <div class="meta-item">
+      <span class="meta-label">Obszar</span>
+      <span class="meta-value">Pion Zarządzania Ryzykiem</span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-label">Horyzont</span>
+      <span class="meta-value">18 miesięcy</span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-label">Cel główny</span>
+      <span class="meta-value">Automatyzacja → Optymalizacja zatrudnienia</span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-label">Technologia</span>
+      <span class="meta-value">GenAI · LLM · Agentowa AI</span>
+    </div>
+  </div>
+</div>
+
+<!-- EXECUTIVE SUMMARY -->
+<div class="page">
+  <div class="section-label">01 · Kontekst i cel</div>
+  <h2>Dlaczego teraz i co osiągniemy</h2>
+
+  <div class="intro-grid">
+    <div class="intro-card">
+      <span class="intro-card-icon">⚡</span>
+      <div class="intro-card-title">Automatyzacja powtarzalnych zadań</div>
+      <p class="intro-card-text">Modele GenAI przejmują 60–80% manualnych czynności analitycznych w procesach ryzyka.</p>
+    </div>
+    <div class="intro-card">
+      <span class="intro-card-icon">🎯</span>
+      <div class="intro-card-title">Redukcja FTE przy zachowaniu jakości</div>
+      <p class="intro-card-text">Możliwa optymalizacja zatrudnienia o 25–35% w obszarach objętych automatyzacją.</p>
+    </div>
+    <div class="intro-card">
+      <span class="intro-card-icon">🛡️</span>
+      <div class="intro-card-title">Lepsza detekcja ryzyka</div>
+      <p class="intro-card-text">AI wykrywa wzorce fraudów i AML niedostrzegalne dla analityków, 24/7 bez przerw.</p>
+    </div>
+    <div class="intro-card">
+      <span class="intro-card-icon">⚖️</span>
+      <div class="intro-card-title">Zgodność regulacyjna</div>
+      <p class="intro-card-text">Wbudowana audytowalność, explainability i zgodność z DORA, EBA GL i polskim prawem bankowym.</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>Kluczowy przekaz dla Zarządu:</strong> Transformacja GenAI w pionie ryzyka to nie inicjatywa IT — to strategiczna zmiana modelu operacyjnego. Banki, które wdrożą ją w perspektywie 12–18 miesięcy, zyskają trwałą przewagę kosztową i jakościową nad konkurencją wciąż opartą na pracy manualnej.
+  </div>
+</div>
+
+<!-- CREDIT PROCESS -->
+<div class="page">
+  <div class="section-label">02 · Obszar I</div>
+  <h2>Proces Kredytowy</h2>
+
+  <div class="domain-block">
+    <div class="domain-header">
+      <div class="domain-badge">CREDIT RISK</div>
+      <div class="domain-header-text">
+        <h3>Automatyzacja oceny kredytowej end-to-end</h3>
+        <p>Największy potencjał oszczędności — dziś analitycy poświęcają 70% czasu na czynności powtarzalne i kompilację danych.</p>
+      </div>
+    </div>
+
+    <div class="use-case-grid">
+      <div class="use-case" data-priority="WYSOKI">
+        <div class="use-case-title">Automatyczna ekstrakcja danych z dokumentów</div>
+        <p class="use-case-desc">LLM przetwarza zaświadczenia o dochodach, PIT-y, wyciągi bankowe, bilanse — bez udziału analityka. Precyzja: >97%.</p>
+        <span class="use-case-saving">↓ 3–4 FTE w back-office kredytowym</span>
+      </div>
+      <div class="use-case" data-priority="WYSOKI">
+        <div class="use-case-title">AI Copilot dla analityka kredytowego</div>
+        <p class="use-case-desc">System generuje wstępną rekomendację kredytową z uzasadnieniem, wskazuje ryzyka i luki w dokumentacji. Analityk weryfikuje decyzję.</p>
+        <span class="use-case-saving">↓ Czas analizy o 65%, obsługa 2× więcej wniosków/analityk</span>
+      </div>
+      <div class="use-case" data-priority="WYSOKI">
+        <div class="use-case-title">Generowanie uzasadnień odmów kredytowych</div>
+        <p class="use-case-desc">Automatyczne tworzenie regulacyjnie poprawnych pism odmownych zgodnych z wymogami CRR/CRD i prawem bankowym.</p>
+        <span class="use-case-saving">↓ 1–2 FTE w obsłudze klienta, eliminacja błędów</span>
+      </div>
+      <div class="use-case" data-priority="ŚREDNI">
+        <div class="use-case-title">Monitoring portfela — early warning</div>
+        <p class="use-case-desc">Ciągła analiza sygnałów z wielu źródeł: BIK, KRS, media, dane transakcyjne. Automatyczny alert przy deterioracji klienta.</p>
+        <span class="use-case-saving">↓ Koszty rezerw, wcześniejsza reakcja windykacyjna</span>
+      </div>
+      <div class="use-case" data-priority="ŚREDNI">
+        <div class="use-case-title">Automatyzacja credit memos</div>
+        <p class="use-case-desc">Generowanie pełnych memorandów kredytowych dla komitetu — ze strukturyzacją, analizą wrażliwości i oceną zabezpieczeń.</p>
+        <span class="use-case-saving">↓ 50–70% czasu przygotowania dokumentacji</span>
+      </div>
+      <div class="use-case" data-priority="NISKI">
+        <div class="use-case-title">Chatbot dla wewnętrznych zapytań kredytowych</div>
+        <p class="use-case-desc">Agent odpowiada na pytania sieci sprzedaży nt. statusu wniosków, wymogów produktowych, bieżących parametrów kredytowych.</p>
+        <span class="use-case-saving">Odciążenie zespołu wsparcia, szybsza sieć sprzedaży</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- AML -->
+<div class="page">
+  <div class="section-label">03 · Obszar II</div>
+  <h2>AML / Przeciwdziałanie Praniu Pieniędzy</h2>
+
+  <div class="domain-block">
+    <div class="domain-header">
+      <div class="domain-badge">AML · CFT</div>
+      <div class="domain-header-text">
+        <h3>Inteligentna triażacja alertów i dochodzenia</h3>
+        <p>Analitycy AML spędzają 80% czasu na false-positive alerts. GenAI może obniżyć wskaźnik fałszywych alarmów o 40–60%.</p>
+      </div>
+    </div>
+
+    <div class="use-case-grid">
+      <div class="use-case" data-priority="WYSOKI">
+        <div class="use-case-title">Automatyczna triażacja i scoring alertów</div>
+        <p class="use-case-desc">Model ocenia każdy alert transakcyjny w kontekście pełnego profilu klienta, historii i wzorców rynkowych. Redukuje false positives do minimum.</p>
+        <span class="use-case-saving">↓ 40–60% wolumenu alertów do ręcznej obsługi</span>
+      </div>
+      <div class="use-case" data-priority="WYSOKI">
+        <div class="use-case-title">AI w przygotowaniu STR / SAR</div>
+        <p class="use-case-desc">Automatyczne generowanie raportów do GIIF (SAR/STR) na podstawie zebranych dowodów, z pełną ścieżką audytu i bibliografią transakcji.</p>
+        <span class="use-case-saving">↓ 2–3 FTE w raportowaniu, skrócenie czasu z 3 dni do 2h</span>
+      </div>
+      <div class="use-case" data-priority="WYSOKI">
+        <div class="use-case-title">Enhanced Due Diligence — automatyzacja</div>
+        <p class="use-case-desc">LLM przeszukuje rejestry, media, bazy sankcyjne i PEP, kompiluje raport EDD gotowy do zatwierdzenia przez analityka.</p>
+        <span class="use-case-saving">↓ Czas EDD z 4h do 20 min per klient</span>
+      </div>
+      <div class="use-case" data-priority="ŚREDNI">
+        <div class="use-case-title">Analiza sieci powiązań</div>
+        <p class="use-case-desc">Graph AI + LLM identyfikuje ukryte struktury własnościowe, powiązania między podmiotami i podejrzane sieci przepływów środków.</p>
+        <span class="use-case-saving">Wykrywanie schematów niewidocznych dotąd dla analityków</span>
+      </div>
+      <div class="use-case" data-priority="ŚREDNI">
+        <div class="use-case-title">Dynamiczny profil behawioralny klienta</div>
+        <p class="use-case-desc">Ciągła aktualizacja profilu ryzyka klienta na bazie wzorców transakcji, zdarzeń życiowych i zewnętrznych sygnałów ostrzegawczych.</p>
+        <span class="use-case-saving">Proaktywny monitoring zamiast reaktywnej obsługi alertów</span>
+      </div>
+      <div class="use-case" data-priority="NISKI">
+        <div class="use-case-title">Inteligentny system Q&A dla procedur AML</div>
+        <p class="use-case-desc">AI agent odpowiada na pytania pracowników nt. procedur, interpretacji regulacji i case studies — dostępny 24/7.</p>
+        <span class="use-case-saving">Redukcja zapytań do compliance o 50%</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FRAUD -->
+<div class="page">
+  <div class="section-label">04 · Obszar III</div>
+  <h2>Wykrywanie i Zapobieganie Fraudom</h2>
+
+  <div class="domain-block">
+    <div class="domain-header">
+      <div class="domain-badge">FRAUD · SECURITY</div>
+      <div class="domain-header-text">
+        <h3>Real-time intelligence i automatyczna reakcja</h3>
+        <p>Fraudy ewoluują szybciej niż reguły systemów. GenAI uczy się na bieżąco, adaptuje do nowych wzorców bez przeprogramowania.</p>
+      </div>
+    </div>
+
+    <div class="use-case-grid">
+      <div class="use-case" data-priority="WYSOKI">
+        <div class="use-case-title">Detekcja fraudów w czasie rzeczywistym</div>
+        <p class="use-case-desc">Model analizuje kontekst transakcji, dane urządzenia, lokalizację i historię behawioralną w <100ms. Decyzja blok/zezwól/weryfikuj.</p>
+        <span class="use-case-saving">↑ Skuteczność detekcji +30–40%, ↓ false positives</span>
+      </div>
+      <div class="use-case" data-priority="WYSOKI">
+        <div class="use-case-title">Automatyczna obsługa zgłoszeń fraudowych</div>
+        <p class="use-case-desc">Chatbot AI przeprowadza klienta przez proces zgłoszenia, zbiera dowody, klasyfikuje sprawę i inicjuje procedury chargeback.</p>
+        <span class="use-case-saving">↓ 2–4 FTE w obsłudze reklamacji fraudowych</span>
+      </div>
+      <div class="use-case" data-priority="WYSOKI">
+        <div class="use-case-title">Analiza dokumentów tożsamości (KYC)</div>
+        <p class="use-case-desc">Vision AI + LLM weryfikuje autentyczność dokumentów, wykrywa deepfakes i manipulacje zdjęć w procesie onboardingu.</p>
+        <span class="use-case-saving">↓ Koszt manualnej weryfikacji o 80%</span>
+      </div>
+      <div class="use-case" data-priority="ŚREDNI">
+        <div class="use-case-title">Social Engineering — wykrywanie</div>
+        <p class="use-case-desc">Model analizuje wzorce kontaktu klienta z bankiem i sygnały behawioralne sugerujące, że klient jest manipulowany (vishing, smishing).</p>
+        <span class="use-case-saving">Ochrona klientów, redukcja strat reputacyjnych i finansowych</span>
+      </div>
+      <div class="use-case" data-priority="ŚREDNI">
+        <div class="use-case-title">Automatyczny raport dochodzeniowy</div>
+        <p class="use-case-desc">Po zamknięciu sprawy fraudowej AI generuje pełny raport dochodzeniowy, timeline zdarzeń i rekomendacje prewencyjne.</p>
+        <span class="use-case-saving">↓ 60% czasu analityków fraud na dokumentację</span>
+      </div>
+      <div class="use-case" data-priority="NISKI">
+        <div class="use-case-title">Threat Intelligence — synteza raportów</div>
+        <p class="use-case-desc">Automatyczne monitorowanie darkweb, forów cyberprzestępczych i raportów branżowych. Synteza w codzienny briefing dla zespołu.</p>
+        <span class="use-case-saving">Proaktywna ochrona, eliminacja 1 FTE w wywiadzie</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CONTROL -->
+<div class="page">
+  <div class="section-label">05 · Obszar IV</div>
+  <h2>Kontrola Wewnętrzna</h2>
+
+  <div class="domain-block">
+    <div class="domain-header">
+      <div class="domain-badge">CONTROL · AUDIT</div>
+      <div class="domain-header-text">
+        <h3>Ciągły monitoring i automatyzacja audytu</h3>
+        <p>Kontrola wewnętrzna jest często niedofinansowana. GenAI umożliwia 100% pokrycie audytowe zamiast próbkowania.</p>
+      </div>
+    </div>
+
+    <div class="use-case-grid">
+      <div class="use-case" data-priority="WYSOKI">
+        <div class="use-case-title">Continuous Controls Monitoring (CCM)</div>
+        <p class="use-case-desc">AI analizuje 100% transakcji i zdarzeń operacyjnych pod kątem naruszeń kontrolnych — bez próbkowania, w czasie rzeczywistym.</p>
+        <span class="use-case-saving">Zmiana z audytu reaktywnego na prewencyjny</span>
+      </div>
+      <div class="use-case" data-priority="WYSOKI">
+        <div class="use-case-title">Automatyzacja przeglądu polityk i procedur</div>
+        <p class="use-case-desc">LLM skanuje zmiany regulacyjne (KNF, EBA, ESMA) i identyfikuje luki w obowiązujących politykach wewnętrznych z propozycją aktualizacji.</p>
+        <span class="use-case-saving">↓ 50% czasu na regulatory gap analysis</span>
+      </div>
+      <div class="use-case" data-priority="WYSOKI">
+        <div class="use-case-title">AI-assisted Risk Assessment</div>
+        <p class="use-case-desc">Automatyczne przygotowanie rocznej oceny ryzyka operacyjnego: kompilacja incydentów, KRI, samoocen i kontroli zewnętrznych w spójny raport.</p>
+        <span class="use-case-saving">↓ 2–3 FTE w przygotowaniu raportów zarządczych</span>
+      </div>
+      <div class="use-case" data-priority="ŚREDNI">
+        <div class="use-case-title">Weryfikacja jakości danych</div>
+        <p class="use-case-desc">Model wykrywa anomalie, niespójności i błędy w danych raportowych (COREP, FINREP, sprawozdawczość NBP) przed złożeniem do regulatora.</p>
+        <span class="use-case-saving">Eliminacja ryzyka sankcji za błędne raporty</span>
+      </div>
+      <div class="use-case" data-priority="ŚREDNI">
+        <div class="use-case-title">Inteligentne zarządzanie incydentami</div>
+        <p class="use-case-desc">AI klasyfikuje incydenty operacyjne, sugeruje root cause, eskaluje automatycznie do właściwych właścicieli i generuje draft zgłoszenia do KNF.</p>
+        <span class="use-case-saving">↓ MTTR o 40%, lepsza zgodność z DORA</span>
+      </div>
+      <div class="use-case" data-priority="NISKI">
+        <div class="use-case-title">Wirtualny asystent kontrolera</div>
+        <p class="use-case-desc">Pracownik zadaje pytanie w języku naturalnym o wyniki kontroli, status rekomendacji, wskaźniki KRI — AI odpowiada na podstawie danych.</p>
+        <span class="use-case-saving">Samoobsługa, redukcja raportów ad hoc</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ROADMAP -->
+<div class="page">
+  <div class="section-label">06 · Harmonogram</div>
+  <h2>Mapa drogowa wdrożenia — 18 miesięcy</h2>
+
+  <div class="callout">
+    <strong>Podejście:</strong> Deliver fast, learn, scale. Nie wielki projekt IT trwający 3 lata — ale zwinne wdrożenia w cyklach 6-tygodniowych (sprints), z mierzalnym ROI po każdej fazie. Każda faza musi pokazać redukcję kosztów lub wzrost skuteczności zanim następna otrzyma finansowanie.
+  </div>
+
+  <div class="roadmap">
+    <div class="roadmap-track"><div class="roadmap-track-fill"></div></div>
+    <div class="roadmap-phases">
+      <div class="phase">
+        <div class="phase-dot active">1</div>
+        <div class="phase-timeframe">M1 – M6 · Faza I</div>
+        <div class="phase-title">Fundamenty i Quick Wins</div>
+        <ul class="phase-items">
+          <li>Wybór platformy AI (Azure OpenAI / AWS Bedrock / on-prem)</li>
+          <li>Wdrożenie data governance i polityki AI</li>
+          <li>AI Copilot dla analityków kredytowych (pilot 5 osób)</li>
+          <li>Automatyczna triażacja alertów AML (pilot)</li>
+          <li>Mierniki sukcesu i KPI framework</li>
+          <li>Szkolenia dla kluczowych pracowników</li>
+        </ul>
+      </div>
+      <div class="phase">
+        <div class="phase-dot">2</div>
+        <div class="phase-timeframe">M7 – M12 · Faza II</div>
+        <div class="phase-title">Skalowanie i Automatyzacja</div>
+        <ul class="phase-items">
+          <li>Roll-out credit copilot na cały pion kredytowy</li>
+          <li>Wdrożenie automated EDD i SAR generation</li>
+          <li>Real-time fraud scoring produkcja</li>
+          <li>Continuous Controls Monitoring — uruchomienie</li>
+          <li>Pierwsza fala optymalizacji zatrudnienia</li>
+          <li>Review regulacyjny (KNF, DPO, DORA)</li>
+        </ul>
+      </div>
+      <div class="phase">
+        <div class="phase-dot">3</div>
+        <div class="phase-timeframe">M13 – M18 · Faza III</div>
+        <div class="phase-title">Pełna Transformacja</div>
+        <ul class="phase-items">
+          <li>Agentowa AI — autonomiczne procesy end-to-end</li>
+          <li>Integracja wszystkich czterech obszarów w jeden ekosystem</li>
+          <li>Druga fala optymalizacji zatrudnienia</li>
+          <li>Center of Excellence AI Risk — wewnętrzne kompetencje</li>
+          <li>Raport dla Rady Nadzorczej i regulatora</li>
+          <li>Ocena gotowości do ekspansji na inne piony</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SAVINGS -->
+<div class="page">
+  <div class="section-label">07 · Business Case</div>
+  <h2>Szacowany potencjał optymalizacji kosztowej</h2>
+
+  <div class="savings-grid">
+    <div class="savings-card">
+      <div class="savings-card-area">Proces Kredytowy</div>
+      <div class="savings-card-value">6–8</div>
+      <p class="savings-card-desc">FTE możliwe do optymalizacji w back-office i analityce kredytowej (z 18–24 miesięcy)</p>
+    </div>
+    <div class="savings-card">
+      <div class="savings-card-area">AML / CFT</div>
+      <div class="savings-card-value">4–6</div>
+      <p class="savings-card-desc">FTE dzięki automatycznej triażacji, EDD i raportowaniu — bez obniżenia jakości detekcji</p>
+    </div>
+    <div class="savings-card">
+      <div class="savings-card-area">Fraud</div>
+      <div class="savings-card-value">3–5</div>
+      <p class="savings-card-desc">FTE w detekcji, obsłudze reklamacji i dochodzeniach fraudowych</p>
+    </div>
+    <div class="savings-card">
+      <div class="savings-card-area">Kontrola</div>
+      <div class="savings-card-value">3–4</div>
+      <p class="savings-card-desc">FTE w raportowaniu, monitoringu ciągłym i przygotowaniu dokumentacji</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>Łącznie: 16–23 FTE w ciągu 18 miesięcy.</strong> Przy średnim koszcie FTE w pionie ryzyka (wynagrodzenie + pochodne + infrastruktura stanowiska) na poziomie 120–160 tys. PLN/rok, potencjalna roczna oszczędność to <strong>1,9–3,7 mln PLN</strong>. Koszt wdrożenia platformy AI (SaaS/chmura): szacunkowo 400–700 tys. PLN/rok. <strong>ROI dodatni od końca Fazy II.</strong>
+  </div>
+
+  <p>Rekomendacja: optymalizacja zatrudnienia poprzez naturalną rotację, redeployment do wyższowartościowych zadań (obsługa modeli, analiza wyjątków, governance) oraz dobrowolne odejścia — a nie nagłe zwolnienia, które generują ryzyko prawne i reputacyjne.</p>
+</div>
+
+<!-- PRIORITY TABLE -->
+<div class="page">
+  <div class="section-label">08 · Tabela priorytetów</div>
+  <h2>Syntetyczna tabela priorytetów inicjatyw GenAI</h2>
+
+  <table class="priority-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Inicjatywa</th>
+        <th>Obszar</th>
+        <th>Priorytet</th>
+        <th>Złożoność</th>
+        <th>Potencjał FTE</th>
+        <th>ROI</th>
+        <th>Horyzont</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr data-p="P1">
+        <td><span class="pill pill-p1">P1</span></td>
+        <td><span class="table-initiative">AI Copilot — Analityk Kredytowy</span><span class="table-sub">Asystent generujący rekomendacje i skracający czas analizy</span></td>
+        <td>Kredyt</td>
+        <td><span class="pill pill-high">WYSOKI</span></td>
+        <td><span class="pill pill-mid">Średnia</span></td>
+        <td>3–4 FTE</td>
+        <td>3–6 mies.</td>
+        <td>Faza I</td>
+      </tr>
+      <tr data-p="P1">
+        <td><span class="pill pill-p1">P1</span></td>
+        <td><span class="table-initiative">Triażacja alertów AML</span><span class="table-sub">Automatyczny scoring i priorytetyzacja false-positive alerts</span></td>
+        <td>AML</td>
+        <td><span class="pill pill-high">WYSOKI</span></td>
+        <td><span class="pill pill-mid">Średnia</span></td>
+        <td>2–3 FTE</td>
+        <td>4–8 mies.</td>
+        <td>Faza I–II</td>
+      </tr>
+      <tr data-p="P1">
+        <td><span class="pill pill-p1">P1</span></td>
+        <td><span class="table-initiative">Real-time Fraud Scoring</span><span class="table-sub">Detekcja w <100ms z kontekstem behawioralnym</span></td>
+        <td>Fraud</td>
+        <td><span class="pill pill-high">WYSOKI</span></td>
+        <td><span class="pill pill-high">Wysoka</span></td>
+        <td>Bezpośrednia redukcja strat</td>
+        <td>6–12 mies.</td>
+        <td>Faza II</td>
+      </tr>
+      <tr data-p="P1">
+        <td><span class="pill pill-p1">P1</span></td>
+        <td><span class="table-initiative">Automatyczna ekstrakcja dokumentów</span><span class="table-sub">OCR + LLM do przetwarzania wniosków i dokumentacji klienta</span></td>
+        <td>Kredyt</td>
+        <td><span class="pill pill-high">WYSOKI</span></td>
+        <td><span class="pill pill-low">Niska</span></td>
+        <td>3–4 FTE</td>
+        <td>2–4 mies.</td>
+        <td>Faza I</td>
+      </tr>
+      <tr data-p="P2">
+        <td><span class="pill pill-p2">P2</span></td>
+        <td><span class="table-initiative">Automatyzacja SAR / STR</span><span class="table-sub">Generowanie raportów do GIIF z ścieżką audytu</span></td>
+        <td>AML</td>
+        <td><span class="pill pill-high">WYSOKI</span></td>
+        <td><span class="pill pill-mid">Średnia</span></td>
+        <td>2 FTE</td>
+        <td>5–9 mies.</td>
+        <td>Faza II</td>
+      </tr>
+      <tr data-p="P2">
+        <td><span class="pill pill-p2">P2</span></td>
+        <td><span class="table-initiative">Enhanced Due Diligence (EDD)</span><span class="table-sub">Automatyczna kompilacja raportu EDD z zewnętrznych źródeł</span></td>
+        <td>AML</td>
+        <td><span class="pill pill-high">WYSOKI</span></td>
+        <td><span class="pill pill-mid">Średnia</span></td>
+        <td>1–2 FTE</td>
+        <td>5–8 mies.</td>
+        <td>Faza II</td>
+      </tr>
+      <tr data-p="P2">
+        <td><span class="pill pill-p2">P2</span></td>
+        <td><span class="table-initiative">Continuous Controls Monitoring</span><span class="table-sub">100% pokrycie audytowe transakcji i zdarzeń operacyjnych</span></td>
+        <td>Kontrola</td>
+        <td><span class="pill pill-high">WYSOKI</span></td>
+        <td><span class="pill pill-high">Wysoka</span></td>
+        <td>2–3 FTE</td>
+        <td>9–14 mies.</td>
+        <td>Faza II</td>
+      </tr>
+      <tr data-p="P2">
+        <td><span class="pill pill-p2">P2</span></td>
+        <td><span class="table-initiative">Automatyzacja obsługi fraudów (klient)</span><span class="table-sub">AI chatbot w procesie reklamacyjnym i chargeback</span></td>
+        <td>Fraud</td>
+        <td><span class="pill pill-mid">ŚREDNI</span></td>
+        <td><span class="pill pill-low">Niska</span></td>
+        <td>2–4 FTE</td>
+        <td>4–8 mies.</td>
+        <td>Faza I–II</td>
+      </tr>
+      <tr data-p="P2">
+        <td><span class="pill pill-p2">P2</span></td>
+        <td><span class="table-initiative">Regulatory Gap Analysis (AI)</span><span class="table-sub">Śledzenie zmian regulacyjnych i luk w politykach wewnętrznych</span></td>
+        <td>Kontrola</td>
+        <td><span class="pill pill-mid">ŚREDNI</span></td>
+        <td><span class="pill pill-low">Niska</span></td>
+        <td>1 FTE</td>
+        <td>3–6 mies.</td>
+        <td>Faza I</td>
+      </tr>
+      <tr data-p="P2">
+        <td><span class="pill pill-p2">P2</span></td>
+        <td><span class="table-initiative">Weryfikacja KYC / dokumentów tożsamości</span><span class="table-sub">Vision AI do wykrywania deepfakes i manipulacji</span></td>
+        <td>Fraud</td>
+        <td><span class="pill pill-high">WYSOKI</span></td>
+        <td><span class="pill pill-mid">Średnia</span></td>
+        <td>Redukcja strat onboarding</td>
+        <td>6–10 mies.</td>
+        <td>Faza II</td>
+      </tr>
+      <tr data-p="P3">
+        <td><span class="pill pill-p3">P3</span></td>
+        <td><span class="table-initiative">Early Warning System (portfel)</span><span class="table-sub">Ciągły monitoring deterioracji klientów korporacyjnych</span></td>
+        <td>Kredyt</td>
+        <td><span class="pill pill-mid">ŚREDNI</span></td>
+        <td><span class="pill pill-mid">Średnia</span></td>
+        <td>Redukcja rezerw</td>
+        <td>10–16 mies.</td>
+        <td>Faza II–III</td>
+      </tr>
+      <tr data-p="P3">
+        <td><span class="pill pill-p3">P3</span></td>
+        <td><span class="table-initiative">Analiza sieci powiązań (Graph AI)</span><span class="table-sub">Wykrywanie ukrytych struktur i schematów prania pieniędzy</span></td>
+        <td>AML</td>
+        <td><span class="pill pill-mid">ŚREDNI</span></td>
+        <td><span class="pill pill-high">Wysoka</span></td>
+        <td>Jakościowe wzmocnienie</td>
+        <td>12–18 mies.</td>
+        <td>Faza III</td>
+      </tr>
+      <tr data-p="P3">
+        <td><span class="pill pill-p3">P3</span></td>
+        <td><span class="table-initiative">AI Risk Assessment (roczny raport)</span><span class="table-sub">Automatyczna kompilacja oceny ryzyka operacyjnego</span></td>
+        <td>Kontrola</td>
+        <td><span class="pill pill-mid">ŚREDNI</span></td>
+        <td><span class="pill pill-low">Niska</span></td>
+        <td>2–3 FTE</td>
+        <td>8–12 mies.</td>
+        <td>Faza II</td>
+      </tr>
+      <tr data-p="P3">
+        <td><span class="pill pill-p3">P3</span></td>
+        <td><span class="table-initiative">Social Engineering Detection</span><span class="table-sub">Sygnały behawioralne wskazujące na manipulację klienta</span></td>
+        <td>Fraud</td>
+        <td><span class="pill pill-mid">ŚREDNI</span></td>
+        <td><span class="pill pill-high">Wysoka</span></td>
+        <td>Ochrona klientów</td>
+        <td>12–18 mies.</td>
+        <td>Faza III</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="margin-top:24px; display:flex; gap:24px; flex-wrap:wrap; font-size:12px; color:var(--mid);">
+    <span><span class="pill pill-p1">P1</span> Krytyczny — wdrożyć natychmiast</span>
+    <span><span class="pill pill-p2">P2</span> Wysoki — Faza I–II</span>
+    <span><span class="pill pill-p3">P3</span> Standardowy — Faza II–III</span>
+  </div>
+</div>
+
+<!-- GOVERNANCE -->
+<div class="page">
+  <div class="section-label">09 · Governance i ryzyka wdrożenia</div>
+  <h2>Kluczowe warunki sukcesu i zarządzanie ryzykiem AI</h2>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:40px; margin-top:16px;">
+    <div>
+      <h3 style="color:var(--green); margin-bottom:16px;">✓ Warunki konieczne</h3>
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div style="border-left:3px solid var(--green); padding:12px 16px; background:#f0fdf4; font-size:13px;">
+          <strong>Sponsor w Zarządzie</strong><br>
+          <span style="color:var(--mid);">Transformacja AI wymaga dedykowanego właściciela na poziomie C-suite — najlepiej CRO lub CDO.</span>
+        </div>
+        <div style="border-left:3px solid var(--green); padding:12px 16px; background:#f0fdf4; font-size:13px;">
+          <strong>AI Policy & Model Risk Management</strong><br>
+          <span style="color:var(--mid);">Przed wdrożeniem konieczne: polityka dopuszczalnego użycia AI, walidacja modeli, inventory rejestr.</span>
+        </div>
+        <div style="border-left:3px solid var(--green); padding:12px 16px; background:#f0fdf4; font-size:13px;">
+          <strong>Jakość danych jako fundament</strong><br>
+          <span style="color:var(--mid);">GenAI jest tak dobry jak dane wejściowe. Audit danych przed wdrożeniem każdego przypadku użycia.</span>
+        </div>
+        <div style="border-left:3px solid var(--green); padding:12px 16px; background:#f0fdf4; font-size:13px;">
+          <strong>Human-in-the-loop w decyzjach krytycznych</strong><br>
+          <span style="color:var(--mid);">Decyzje kredytowe, SAR i blokady muszą mieć człowieka jako ostatni punkt zatwierdzenia.</span>
+        </div>
+      </div>
+    </div>
+    <div>
+      <h3 style="color:var(--red); margin-bottom:16px;">⚠ Ryzyka do zarządzania</h3>
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div style="border-left:3px solid var(--red); padding:12px 16px; background:#fef2f2; font-size:13px;">
+          <strong>Ryzyko regulacyjne (KNF, RODO, AI Act)</strong><br>
+          <span style="color:var(--mid);">EU AI Act klasyfikuje systemy scoringowe jako "wysokiego ryzyka" — konieczna rejestracja i explainability.</span>
+        </div>
+        <div style="border-left:3px solid var(--red); padding:12px 16px; background:#fef2f2; font-size:13px;">
+          <strong>Ryzyko model hallucination</strong><br>
+          <span style="color:var(--mid);">LLM może generować błędne informacje. Obowiązkowe: RAG z zaufanymi źródłami, guardrails, testy.</span>
+        </div>
+        <div style="border-left:3px solid var(--red); padding:12px 16px; background:#fef2f2; font-size:13px;">
+          <strong>Opór pracowników</strong><br>
+          <span style="color:var(--mid);">Komunikacja musi być transparentna. Plan reskillingu i redeploymentu — nie tylko zwolnienia.</span>
+        </div>
+        <div style="border-left:3px solid var(--red); padding:12px 16px; background:#fef2f2; font-size:13px;">
+          <strong>Vendor lock-in i bezpieczeństwo danych</strong><br>
+          <span style="color:var(--mid);">Dane klientów nie mogą opuszczać środowiska banku. Wymagana architektura on-prem lub private cloud.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- RECOMMENDATIONS -->
+<div class="page">
+  <div class="section-label">10 · Rekomendacje dla Zarządu</div>
+  <h2>Decyzje wymagane od Zarządu</h2>
+
+  <div style="display:flex; flex-direction:column; gap:20px; margin-top:8px;">
+    <div style="display:flex; gap:20px; align-items:flex-start; padding:24px; border:1px solid var(--rule); background:#fff;">
+      <div style="font-family:var(--mono); font-size:20px; color:var(--gold); font-weight:700; flex-shrink:0; width:40px; text-align:center;">01</div>
+      <div>
+        <div style="font-weight:600; font-size:15px; margin-bottom:6px;">Zatwierdzenie budżetu pilotowego Fazy I</div>
+        <p style="font-size:13px; margin:0;">Rekomendowany budżet Fazy I: 300–500 tys. PLN (platforma + licencje + zewnętrzni eksperci AI). Decyzja potrzebna w ciągu 30 dni.</p>
+      </div>
+    </div>
+    <div style="display:flex; gap:20px; align-items:flex-start; padding:24px; border:1px solid var(--rule); background:#fff;">
+      <div style="font-family:var(--mono); font-size:20px; color:var(--gold); font-weight:700; flex-shrink:0; width:40px; text-align:center;">02</div>
+      <div>
+        <div style="font-weight:600; font-size:15px; margin-bottom:6px;">Powołanie AI Steering Committee</div>
+        <p style="font-size:13px; margin:0;">Komitet złożony z CRO, CIO, CDO, Legal/Compliance i HR — spotykający się co miesiąc. Właściciel programu na poziomie Zarządu.</p>
+      </div>
+    </div>
+    <div style="display:flex; gap:20px; align-items:flex-start; padding:24px; border:1px solid var(--rule); background:#fff;">
+      <div style="font-family:var(--mono); font-size:20px; color:var(--gold); font-weight:700; flex-shrink:0; width:40px; text-align:center;">03</div>
+      <div>
+        <div style="font-weight:600; font-size:15px; margin-bottom:6px;">Zatwierdzenie planu zarządzania zasobami ludzkimi</div>
+        <p style="font-size:13px; margin:0;">Spójny komunikat dla pracowników: redeployment i reskilling jako priorytet, optymalizacja przez naturalną rotację i dobrowolne odejścia — nie nagłe zwolnienia.</p>
+      </div>
+    </div>
+    <div style="display:flex; gap:20px; align-items:flex-start; padding:24px; border:1px solid var(--rule); background:#fff;">
+      <div style="font-family:var(--mono); font-size:20px; color:var(--gold); font-weight:700; flex-shrink:0; width:40px; text-align:center;">04</div>
+      <div>
+        <div style="font-weight:600; font-size:15px; margin-bottom:6px;">Wybór modelu infrastrukturalnego</div>
+        <p style="font-size:13px; margin:0;">Decyzja: chmura prywatna (Azure / AWS — dedicated) vs. on-premise LLM. Kluczowe kryterium: wymogi RODO, bezpieczeństwo danych klientów, regulacje KNF dot. outsourcingu.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout" style="margin-top:40px;">
+    <strong>Podsumowanie:</strong> Banki europejskie, które zaczęły transformację AI w pionie ryzyka w 2023–2024, raportują redukcję kosztów operacyjnych o 20–35% w objętych obszarach w ciągu 2 lat. Okno na szybkie wdrożenie zamyka się — im dłużej czekamy, tym wyższe koszty transformacji i mniejsza przewaga konkurencyjna. Rekomendujemy <strong>start Fazy I natychmiast po zatwierdzeniu budżetu</strong>.
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="doc-footer">
+  <div class="doc-footer-left">
+    PION ZARZĄDZANIA RYZYKIEM<br>
+    STRATEGIA GenAI · MATERIAŁ POUFNY
+  </div>
+  <div class="doc-footer-right">
+    Dokument przeznaczony wyłącznie dla Zarządu<br>
+    Nie do dystrybucji bez zgody CRO<br>
+    Wersja 1.0 · Marzec 2025
+  </div>
+</div>
+
+</body>
+</html>
