@@ -1,0 +1,61 @@
+import pandas as pd
+import numpy as np
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from scipy.special import logit
+import re
+
+# 1. Wczytaj dane
+df = pd.read_csv('labeled_data.csv')  # kolumny: text, role
+df['role'] = df['role'].str.strip()
+
+# 2. Proste czyszczenie – zachowajmy polskie znaki
+stopwords = {'w','i','że','to','jest','czy','się','nie','na','tak','jak','co','o','a','z','do','po','za','ale',
+             'już','tego','tym','go','mi','mnie','ci','być','by','będzie','mam','dla','od','gdy','przez',
+             'jej','jego','ich','ten','tą','tę'}  # uzupełnij
+
+def clean_text(t):
+    t = t.lower()
+    t = re.sub(r'[^a-ząćęłńóśźż\s]', '', t)  # tylko litery i spacje
+    tokens = [w for w in t.split() if w not in stopwords and len(w)>1]
+    return ' '.join(tokens)
+
+df['clean_text'] = df['text'].apply(clean_text)
+
+# 3. Budowa macierzy częstości n‑gramów (1-3)
+vec = CountVectorizer(ngram_range=(1,3), max_features=5000, min_df=3)
+X = vec.fit_transform(df['clean_text'])
+feature_names = vec.get_feature_names_out()
+
+# 4. Obliczenie log-odds ratio dla każdego n‑gramu
+# logit(p_klient) - logit(p_pracownik)
+total_client = df[df['role']=='Klient'].shape[0]
+total_employee = df[df['role']=='Pracownik'].shape[0]
+
+client_counts = X[df['role']=='Klient'].sum(axis=0).A1
+employee_counts = X[df['role']=='Pracownik'].sum(axis=0).A1
+
+# Wygładzanie Laplace’a
+alpha = 1e-3
+p_client = (client_counts + alpha) / (total_client + 2*alpha)
+p_employee = (employee_counts + alpha) / (total_employee + 2*alpha)
+
+# Log odds: dodatnie -> klient, ujemne -> pracownik
+log_odds = np.log(p_client) - np.log(p_employee)  # równoważne log(p_client/p_employee)
+
+scores = pd.DataFrame({
+    'ngram': feature_names,
+    'client_freq': client_counts,
+    'employee_freq': employee_counts,
+    'log_odds': log_odds
+})
+
+# 5. Wybór top‑N dla każdej roli
+N = 50
+top_client = scores.sort_values('log_odds', ascending=False).head(N)
+top_employee = scores.sort_values('log_odds', ascending=True).head(N)
+
+print("Wzorce Klienta:")
+print(top_client[['ngram','log_odds']].to_string(index=False))
+print("\nWzorce Pracownika:")
+print(top_employee[['ngram','log_odds']].to_string(index=False))
